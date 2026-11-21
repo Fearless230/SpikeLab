@@ -249,17 +249,20 @@ VB.body.init($("#bodyStage"),{onPick:id=>{activeM=id;renderBody();const row=$(`.
   onHover:id=>{$$("#musList .mrow").forEach(r=>r.classList.toggle("hot",r.dataset.m===id));}});
 
 /* ---------- skills ---------- */
-let tab="tech",curTech="pass",curDrill=null,fSkill="all",fFit=true,fOff=false;
+let tab="tech",curTech="pass",curDrill=null,fSkill="all",fFit=true,fOff=false,fTech="all";
 const SKILL_TECH={pass:"pass",set:"set",serve:"float",attack:"spike",block:"block",dig:"dig",transition:"spike",team:"receive"};
 const STATUS=[["none","Not started"],["practising","Practising"],["ready","Game ready"]];
 function drillList(){return DRS.filter(d=>(fSkill==="all"||d.skill===fSkill)&&(!fOff||d.offcourt)&&(!fFit||!S().profile||VB.drillFits(d))).sort((a,b)=>a.level-b.level||a.skill.localeCompare(b.skill));}
 function renderSkills(){const lefty=S().profile&&S().profile.hand==="left";
   $("#skillStat").textContent=`${TECHS.length} techniques · ${DRS.length} drills · 4 levels`;
   $$("#skillTabs button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.tab===tab));
-  const ff=$("#drillFilters");ff.hidden=tab!=="drill";
-  ff.innerHTML=`<button type="button" class="chip offc" data-off="1" aria-pressed="${fOff}">Off court: a wall and a ball</button>`+[["all","All"],...Object.entries(VB.SKILLS)].map(([k,l])=>`<button type="button" class="chip" data-fs="${k}" aria-pressed="${k===fSkill}">${l}</button>`).join("")+(S().profile?`<button type="button" class="chip" data-fit="1" aria-pressed="${fFit}">Fits my setup</button>`:"");
+  const ff=$("#drillFilters");ff.hidden=false;
+  if(tab==="tech"){const sk=[...new Set(TECHS.map(t=>t.skill))].filter(k=>VB.SKILLS[k]);
+    ff.innerHTML=[["all","All"],...sk.map(k=>[k,VB.SKILLS[k]])].map(([k,l])=>`<button type="button" class="chip" data-ft="${k}" aria-pressed="${k===fTech}">${l}${k==="all"?"":` <small>${TECHS.filter(t=>t.skill===k).length}</small>`}</button>`).join("");}
+  else ff.innerHTML=`<button type="button" class="chip offc" data-off="1" aria-pressed="${fOff}">Off court: a wall and a ball</button>`+[["all","All"],...Object.entries(VB.SKILLS)].map(([k,l])=>`<button type="button" class="chip" data-fs="${k}" aria-pressed="${k===fSkill}">${l}</button>`).join("")+(S().profile?`<button type="button" class="chip" data-fit="1" aria-pressed="${fFit}">Fits my setup</button>`:"");
   if(tab==="tech"){
-    $("#gallery").innerHTML=TECHS.map(t=>{const st=S().tech[t.id]||"none";return `<button type="button" class="tcard" data-tech="${t.id}" aria-pressed="${t.id===curTech}"><div class="row" style="justify-content:space-between"><span class="pill">${t.kind} · ${t.level}</span>${st!=="none"?`<span class="pill ${st==="ready"?"ok":"on"}">${STATUS.find(s=>s[0]===st)[1]}</span>`:""}</div><div class="n">${esc(t.name)}</div><div class="s">${esc(t.sum)}</div></button>`;}).join("");
+    const shown=TECHS.filter(t=>fTech==="all"||t.skill===fTech);
+    $("#gallery").innerHTML=shown.map(t=>{const st=S().tech[t.id]||"none";return `<button type="button" class="tcard" data-tech="${t.id}" aria-pressed="${t.id===curTech}"><div class="row" style="justify-content:space-between"><span class="pill">${t.kind} · ${t.level}</span>${st!=="none"?`<span class="pill ${st==="ready"?"ok":"on"}">${STATUS.find(s=>s[0]===st)[1]}</span>`:""}</div><div class="n">${esc(t.name)}</div><div class="s">${esc(t.sum)}</div></button>`;}).join("");
     const t=T[curTech]||TECHS[0],st=S().tech[t.id]||"none",sk=t.skill||VB.TECH_SKILL[t.id],drills=DRS.filter(d=>d.skill===sk&&(!S().profile||VB.drillFits(d))).slice(0,4);
     $("#skillDetail").innerHTML=`<div class="stat">${t.kind} · ${t.level} · ${VB.SKILLS[t.skill]||""}</div><h2>${esc(t.name)}</h2><p>${esc(t.sum)}</p>${t.why?`<p class="muted small">${esc(t.why)}</p>`:""}
      ${t.cues?`<div class="cues">${t.cues.map(c=>`<span>${esc(c)}</span>`).join("")}</div>`:""}
@@ -291,7 +294,7 @@ function renderSkills(){const lefty=S().profile&&S().profile.hand==="left";
     VB.court.select(d.scene||T[SKILL_TECH[d.skill]].scene,{lefty,tech:d.scene?null:SKILL_TECH[d.skill]});
   }}
 $("#skillTabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b){tab=b.dataset.tab;renderSkills();}});
-$("#drillFilters").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.fs)fSkill=b.dataset.fs;if(b.dataset.fit)fFit=!fFit;if(b.dataset.off)fOff=!fOff;renderSkills();});
+$("#drillFilters").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.ft){fTech=b.dataset.ft;const l=TECHS.filter(t=>fTech==="all"||t.skill===fTech);if(l.length&&!l.some(t=>t.id===curTech))curTech=l[0].id;}if(b.dataset.fs)fSkill=b.dataset.fs;if(b.dataset.fit)fFit=!fFit;if(b.dataset.off)fOff=!fOff;renderSkills();});
 $("#gallery").addEventListener("click",e=>{const b=e.target.closest(".tcard");if(!b)return;if(b.dataset.tech)curTech=b.dataset.tech;if(b.dataset.dr)curDrill=b.dataset.dr;renderSkills();if(window.innerWidth<940)$("#skillDetail").scrollIntoView({behavior:VB.reduced?"auto":"smooth",block:"start"});});
 $("#skillDetail").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   if(b.dataset.drill){VB.ui.openDrill(b.dataset.drill);return;}
@@ -315,7 +318,7 @@ let editing=null;
 function blankCustom(){return {id:null,name:"",weeks:6,w:{},skill:.4,skills:[],blocks:{prep:true,skills:true,power:true,strength:true,care:true},chains:[],drills:[],mins:null};}
 function renderPrograms(){const st=S(),ap=VB.activeProgram(),d=ap.def;
   $("#activeProg").innerHTML=`<div class="card progcard"><div class="stack" style="gap:10px"><div class="stat">Your program${d.custom?" · custom":""}</div><h3>${esc(d.name)}</h3><p class="muted">${esc(d.desc||"Your own mix of pillars, skills and pinned work.")}</p>${ap.phase?`<div><span class="pill on">Phase: ${esc(ap.phase.name)} · weeks ${ap.phase.from} to ${ap.phase.to}</span></div><p class="small">${esc(ap.phase.focus)}</p>`:""}
-     ${d.weeks?`<div><div class="row" style="justify-content:space-between"><span class="stat">${ap.finished?"Complete":"Week "+ap.week+" of "+d.weeks}</span><span class="stat">${ap.pct}%</span></div><div class="meter"><i style="width:${ap.pct}%"></i></div></div>`:`<div class="stat">Ongoing · week ${ap.week}</div>`}
+     ${d.weeks?`<div><div class="row" style="justify-content:space-between"><span class="stat">${ap.finished?"Complete":"Week "+ap.week+" of "+d.weeks}</span><span class="stat">${ap.pct}%</span></div><div class="meter"><i style="width:${ap.pct}%"></i></div></div>`:`<div class="stat">Ongoing · week ${ap.week}</div>`}${VB.calUI?VB.calUI.progTimeline():""}
      <div class="row"><a class="btn primary" href="#today">Go to today's session</a>${d.id!=="auto"?`<button type="button" class="btn sm" data-start="auto">Back to adaptive</button>`:""}</div></div>
      <div class="stack" style="gap:10px">${mixBar(d.w)}${d.outline?`<ul class="plain small">${d.outline.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}${ap.finished?`<div class="note">You have finished this program. Retest your vertical, film a skill, then start the next one below.</div>`:""}</div></div>`;
   renderPosProgs(ap);

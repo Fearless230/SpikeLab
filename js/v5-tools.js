@@ -1,18 +1,19 @@
-/* v5-tools.js: the Toolkit view (#tools). Five courtside tools, all offline:
-   interval timer · match stat tracker · rotation viewer · calculators · rules and glossary.
+/* v5-tools.js: the Toolkit view (#tools). Six courtside tools, all offline:
+   interval timer · match stat tracker · rotation viewer (switches, receive formations, overlap quiz) · plays library · calculators · rules, signals, quiz and glossary.
    Sub-tabs live in the hash (#tools/timer) so the Home quick actions can deep-link. */
 (function(){
 "use strict";
 const VB=window.VB,$=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s)),esc=VB.esc;
 const S=()=>VB.state,V5=VB.v5,ic=V5.ic,toast=V5.toast;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const TABS=[["timer","Interval timer","timer"],["match","Match tracker","board"],["rotations","Rotations","rotate"],["calc","Calculators","calc"],["rules","Rules and terms","book"]];
+const TABS=[["timer","Interval timer","timer"],["match","Match tracker","board"],["rotations","Rotations","rotate"],["plays","Plays","play"],["calc","Calculators","calc"],["rules","Rules and terms","book"]];
 let tab="timer";
 
 function show(sub){if(TABS.some(t=>t[0]===sub))tab=sub;render();}
 function render(){const root=$("#toolsRoot");if(!root)return;
   root.innerHTML=`<div class="ttabs" role="tablist" aria-label="Tools">${TABS.map(([id,l,i])=>`<button type="button" role="tab" data-ttab="${id}" aria-selected="${id===tab}">${ic(i)}<span>${esc(l)}</span></button>`).join("")}</div><div id="tpanel" class="tpanel"></div>`;
-  ({timer:renderTimer,match:renderMatch,rotations:renderRot,calc:renderCalc,rules:renderRules})[tab]();}
+  if(tab!=="rotations"){autoStop();RS.sig="";}if(tab!=="plays"){PS.playing=false;cancelAnimationFrame(PS.raf);}
+  ({timer:renderTimer,match:renderMatch,rotations:renderRot,plays:renderPlays,calc:renderCalc,rules:renderRules})[tab]();}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-ttab]");if(!b)return;tab=b.dataset.ttab;try{history.replaceState(null,"","#tools/"+tab);}catch(_){}render();});
 VB.tools={show,render};
 // the first route ran before this file loaded
@@ -159,49 +160,236 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-mt],
 document.addEventListener("change",e=>{if(e.target.id==="mopp"||e.target.id==="mdate"){const L=live();L.opp=$("#mopp").value.trim().slice(0,40);L.date=$("#mdate").value||VB.today();VB.save();}});
 
 /* ================= rotations ================= */
-// zone centres on a half court seen from behind the end line: net at the top
-const ZP={1:[250,265],2:[250,95],3:[150,95],4:[50,95],5:[50,265],6:[150,265]};
+// half court seen from behind our end line, net at the top: 300 x 330 = 9 m x 9 m; 3 m line at y = 110
+const ZP={1:[250,262],2:[250,72],3:[150,72],4:[50,72],5:[50,262],6:[150,262]};
 const ROLE={S:["Setter","#ffc145"],S2:["Setter 2","#ffc145"],OH1:["Outside 1","var(--gold)"],OH2:["Outside 2","var(--gold)"],MB1:["Middle 1","#45c8ff"],MB2:["Middle 2","#45c8ff"],OPP:["Opposite","#9d86ff"],L:["Libero","#4fd394"]};
 const SYS={"5-1":{lineup:["S","OH1","MB1","OPP","OH2","MB2"],note:"One setter runs the offence in all six rotations. When the setter is in the front row there are only two front-row hitters, so a back-row attack (often the opposite or an outside from zone 1 or 6) matters most in those three rotations."},
   "6-2":{lineup:["S","OH1","MB1","S2","OH2","MB2"],note:"Two setters opposite each other. Whoever is in the back row sets, and the front-row setter hits on the right side, so there are always three front-row attackers."},
   "4-2":{lineup:["S","OH1","MB1","S2","OH2","MB2"],note:"Two setters opposite each other. Whoever is in the front row sets from the right front, so there are only two front-row hitters, but the setter can always attack or dump the second ball. Common in younger teams."}};
-let RS={sys:"5-1",rot:0,after:false,lib:true};
+const FB=[[4,5],[3,6],[2,1]],LR=[[4,3],[3,2],[5,6],[6,1]],FRONT=[2,3,4],BENCH=[-38,218],SERVER_Y=356;
+const ZNAME={1:"right back",2:"right front",3:"middle front",4:"left front",5:"left back",6:"middle back"};
+let RS={sys:"5-1",rot:0,mom:"receive",after:false,lib:true,rules:"fivb",pairs:false,auto:0,quiz:null,sig:""};
+const kindOf=r=>r.replace(/\d/,"");
 function lineupFor(sys,rot){const base=SYS[sys].lineup,z={};for(let k=0;k<6;k++)z[k+1]=base[(k+rot)%6];return z;} // rot 0: setter in zone 1; each rotation moves everyone one zone clockwise
-function setterOf(sys,z){const front=[2,3,4],ss=Object.entries(z).filter(([_,r])=>r==="S"||r==="S2");if(sys==="5-1")return ss[0][1];
-  const fr=ss.find(([k])=>front.includes(+k)),bk=ss.find(([k])=>!front.includes(+k));return sys==="6-2"?bk[1]:fr[1];}
-function baseZone(sys,zones,setter){const out={},front=[2,3,4];
-  for(const [zs,r] of Object.entries(zones)){const zn=+zs,isFront=front.includes(zn),kind=r.replace(/\d/,"");
-    if(isFront){out[r]=r===setter?2:kind==="OH"?4:kind==="MB"?3:2;}
-    else{out[r]=r===setter?1:(kind==="S"||kind==="OPP")?1:kind==="OH"?6:5;}}
-  return out;}
-function renderRot(){const z0=lineupFor(RS.sys,RS.rot),setter=setterOf(RS.sys,z0),z={...z0};
-  const libFor=RS.lib?Object.keys(z).find(k=>[1,5,6].includes(+k)&&/^MB/.test(z[k])):null;if(libFor)z[libFor]="L";
-  const base=baseZone(RS.sys,z0,setter),sZone=+Object.keys(z0).find(k=>z0[k]===setter),front=[4,3,2].map(k=>z[k]),hitters=front.filter(r=>r!==setter&&r!=="L").length;
-  const pos=r=>{const zone=RS.after?(r==="L"?5:base[r]):+Object.keys(z).find(k=>z[k]===r);return ZP[zone];};
-  const arrows=RS.after?Object.values(z).map(r=>{const p=pos(r),o=ZP[+Object.keys(z).find(k=>z[k]===r)];if(o[0]===p[0]&&o[1]===p[1])return "";
-      const mx=(o[0]+p[0])/2,my=(o[1]+p[1])/2,dx=p[0]-o[0],dy=p[1]-o[1],len=Math.hypot(dx,dy)||1,bend=40,cx=mx-dy/len*bend,cy=my+dx/len*bend*-1;
-      // start and end just outside the circles so the arrow stays visible
-      const s0=[o[0]+(cx-o[0])/Math.hypot(cx-o[0],cy-o[1])*27,o[1]+(cy-o[1])/Math.hypot(cx-o[0],cy-o[1])*27],e0=[p[0]+(cx-p[0])/Math.hypot(cx-p[0],cy-p[1])*30,p[1]+(cy-p[1])/Math.hypot(cx-p[0],cy-p[1])*30];
-      return `<path d="M${s0[0].toFixed(1)} ${s0[1].toFixed(1)}Q${cx.toFixed(1)} ${cy.toFixed(1)} ${e0[0].toFixed(1)} ${e0[1].toFixed(1)}" class="rarr" fill="none" marker-end="url(#rah)"/><circle cx="${o[0]}" cy="${o[1]}" r="25" class="rghost"/>`;}).join(""):"";
-  const dots=arrows+Object.values(z).map(r=>{const p=pos(r),[nm,col]=ROLE[r],isSet=r===setter;
-    return `
-      <g class="rp" style="transform:translate(${p[0]}px,${p[1]}px)"><circle r="25" fill="${col}" ${isSet?'stroke="#fff" stroke-width="3"':""}/><text y="5" text-anchor="middle">${r.replace(/(\d)/,"$1")}</text><text class="rn" y="42" text-anchor="middle">${esc(nm)}${isSet?" · sets":""}</text></g>`;}).join("");
-  const zl=[1,2,3,4,5,6].map(k=>`<text class="zl" x="${ZP[k][0]+30}" y="${ZP[k][1]-26}">${k}</text>`).join("");
-  $("#tpanel").innerHTML=`<div class="rgrid"><div class="v5card"><div class="row rtop"><div class="seg" role="group" aria-label="System">${Object.keys(SYS).map(s=>`<button type="button" data-rsys="${s}" aria-pressed="${RS.sys===s}">${s}</button>`).join("")}</div>
-      <div class="seg" role="group" aria-label="Moment"><button type="button" data-raft="0" aria-pressed="${!RS.after}">At the serve</button><button type="button" data-raft="1" aria-pressed="${RS.after}">Base after the serve</button></div>
-      <label class="rlib"><input type="checkbox" id="rlib" ${RS.lib?"checked":""}> Libero in for the back-row middle</label></div>
-    <div class="rnav">${[0,1,2,3,4,5].map(r=>{const zz=lineupFor(RS.sys,r),ss=setterOf(RS.sys,zz),sz=Object.keys(zz).find(k=>zz[k]===ss);return `<button type="button" data-rrot="${r}" aria-pressed="${RS.rot===r}"><b>${r+1}</b><small>Setter in ${sz}</small></button>`;}).join("")}</div>
-    <svg class="rcourt" viewBox="-10 -30 320 360" role="img" aria-label="Rotation ${RS.rot+1}, ${RS.after?"base positions after the serve":"positions at the serve"}">
-      <defs><marker id="rah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
-      <rect x="0" y="0" width="300" height="320" class="rfl"/><line x1="0" y1="110" x2="300" y2="110" class="r3m"/><rect x="-6" y="-8" width="312" height="8" class="rnet"/><text x="150" y="-14" text-anchor="middle" class="rlab">NET</text><text x="150" y="350" text-anchor="middle" class="rlab">END LINE · zone 1 serves</text>${zl}${dots}</svg></div>
-    <div class="stack"><div class="v5card"><div class="kicker">Rotation ${RS.rot+1} · ${esc(RS.sys)}</div><h3>Setter in zone ${sZone}</h3>
-      <ul class="rfacts"><li><b>${hitters}</b> front-row attacker${hitters===1?"":"s"}: ${front.filter(r=>r!==setter&&r!=="L").map(r=>ROLE[r][0]).join(", ")}</li><li><b>${esc(ROLE[z[1]]?ROLE[z[1]][0]:z[1])}</b> serves when your team is serving</li><li>Setter: <b>${esc(ROLE[setter][0])}</b>, ${[2,3,4].includes(sZone)?"front row (may attack or dump the second ball)":"back row (may not attack above the net in front of the 3 m line)"}</li>${libFor?`<li>Libero is in for <b>${esc(ROLE[z0[libFor]][0])}</b> in zone ${libFor}</li>`:""}</ul>
-      <p class="small muted">${esc(SYS[RS.sys].note)}</p></div>
-     <div class="v5card"><div class="kicker">Overlap rule</div><p class="small">At the moment of the serve, each front-row player must be closer to the net than the back-row player directly behind them (4 ahead of 5, 3 ahead of 6, 2 ahead of 1). Side to side, the players in each row must stay in order: 4 left of 3, 3 left of 2, and 5 left of 6, 6 left of 1. Only the feet count. Once the ball is served, everyone can move to their base.</p>
-      <p class="small muted">Base positions shown are a common arrangement: front row outside left, middle in the middle, setter or opposite on the right; back row libero left back, outside middle back, setter or opposite right back. Many teams vary the back-row spots, so follow your coach's system.</p></div></div></div>`;}
-document.addEventListener("click",e=>{const b=e.target.closest("[data-rsys],[data-raft],[data-rrot]");if(!b)return;if(b.dataset.rsys)RS.sys=b.dataset.rsys;if(b.dataset.raft)RS.after=b.dataset.raft==="1";if(b.dataset.rrot)RS.rot=+b.dataset.rrot;renderRot();});
-document.addEventListener("change",e=>{if(e.target.id==="rlib"){RS.lib=e.target.checked;renderRot();}});
-document.addEventListener("keydown",e=>{if(V5.view()!=="tools"||tab!=="rotations"||e.target.closest("input,textarea,select"))return;if(e.key==="ArrowRight"){RS.rot=(RS.rot+1)%6;renderRot();}if(e.key==="ArrowLeft"){RS.rot=(RS.rot+5)%6;renderRot();}});
+function setterOf(sys,z){const ss=Object.entries(z).filter(([_,r])=>r==="S"||r==="S2");if(sys==="5-1")return ss[0][1];
+  const fr=ss.find(([k])=>FRONT.includes(+k)),bk=ss.find(([k])=>!FRONT.includes(+k));return sys==="6-2"?bk[1]:fr[1];}
+const zoneIn=(z,r)=>+Object.keys(z).find(k=>z[k]===r);
+/* who is on court: the libero replaces the back-row middle, except when that middle is the server (FIVB: the libero may not serve) */
+function court(st){const z0=lineupFor(st.sys,st.rot),setter=setterOf(st.sys,z0),z={...z0};let libFor=null,out=null,libServeNote=false;
+  if(st.lib){const k=Object.keys(z0).find(k=>!FRONT.includes(+k)&&/^MB/.test(z0[k]));
+    if(k&&!(st.mom==="serve"&&+k===1)){libFor=+k;z[k]="L";out=z0[k];}else{out="L";if(k)libServeNote=true;}}
+  return {z0,z,setter,libFor,out,libServeNote};}
+/* base positions after the switch: front row outside left, middle centre, setter or opposite right; back row setter or opposite right, outside middle, libero or middle left */
+function baseSpots(z,setter){const o={};for(const [k,r] of Object.entries(z)){const kd=kindOf(r),fr=FRONT.includes(+k);
+    o[r]=fr?(kd==="OH"?[55,46]:kd==="MB"?[150,46]:[245,46]):((kd==="S"||kd==="OPP")?[245,240]:kd==="OH"?[150,276]:[55,240]);}return o;}
+/* receive: three passers (both outsides and the libero, or the back-row middle), front-row non-passers hide at the net,
+   the back-row setter starts as close to the target as the overlap rule lets them, then everything is made legal */
+function passersOf(z){const zn=r=>zoneIn(z,r),hasL=Object.values(z).includes("L");
+  const p=Object.values(z).filter(r=>kindOf(r)==="OH"||r==="L"||(!hasL&&kindOf(r)==="MB"&&!FRONT.includes(zn(r))));
+  const lat={4:0,5:0,3:1,6:1,2:2,1:2};return p.sort((a,b)=>lat[zn(a)]-lat[zn(b)]||(FRONT.includes(zn(a))?-1:1));}
+function receiveSpots(z,setter){const o={},zn=r=>zoneIn(z,r),passers=passersOf(z);
+  const slots=[[62,232],[150,244],[238,232]];passers.slice(0,3).forEach((r,i)=>o[r]=slots[i].slice());
+  for(const r of Object.values(z)){if(o[r])continue;const k=zn(r),fr=FRONT.includes(k);
+    if(r===setter)o[r]=fr?[{2:232,3:186,4:96}[k],40]:[224,58];
+    else if(fr)o[r]=[{4:70,3:150,2:232}[k],42];
+    else o[r]=[{5:34,6:150,1:268}[k],304];}
+  // passers hold their lanes; the players hiding or releasing give way to them
+  const w=Object.fromEntries(Object.values(z).map(r=>[r,passers.includes(r)?.12:1]));
+  return legalize(o,z,w);}
+function legalize(o,z,w,m=16,D=50){const P=k=>o[z[k]],W=k=>w?w[z[k]]:1,rs=Object.values(z),cl=p=>{p[0]=clamp(p[0],18,282);p[1]=clamp(p[1],26,318);};
+  const push=(A,B,ax,v,wa,wb)=>{A[ax]-=v*wa/(wa+wb);B[ax]+=v*wb/(wa+wb);};
+  const order=()=>{for(const [f,b] of FB){const v=P(f)[1]+m-P(b)[1];if(v>0)push(P(f),P(b),1,v,W(f),W(b));}for(const [l,r] of LR){const v=P(l)[0]+m-P(r)[0];if(v>0)push(P(l),P(r),0,v,W(l),W(r));}rs.forEach(r=>cl(o[r]));};
+  for(let it=0;it<80;it++){for(let i=0;i<rs.length;i++)for(let j=i+1;j<rs.length;j++){const a=o[rs[i]],b=o[rs[j]],dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy)||1;
+      if(d<D){const wa=w?w[rs[i]]:1,wb=w?w[rs[j]]:1,k=(D-d)/d/(wa+wb);a[0]-=dx*k*wa;a[1]-=dy*k*wa;b[0]+=dx*k*wb;b[1]+=dy*k*wb;}}order();}
+  for(let it=0;it<40;it++)order();return o;}
+function serveSpots(z,setter,rules){const o=rules==="fivb"?baseSpots(z,setter):Object.fromEntries(Object.entries(z).map(([k,r])=>[r,ZP[k].slice()]));o[z[1]]=[ZP[1][0],SERVER_Y];return o;}
+/* overlap check (receiving team, and the serving team under rules that still require it): positions stand in for the feet */
+function overlapFaults(o,z,skipServer){const f=[];for(const [a,b] of FB){if(skipServer&&b===1)continue;if(!(o[z[a]][1]<o[z[b]][1]))f.push({a,b,k:"fb"});}
+  for(const [a,b] of LR){if(skipServer&&(a===1||b===1))continue;if(!(o[z[a]][0]<o[z[b]][0]))f.push({a,b,k:"lr"});}return f;}
+function faultText(F,z){const n=k=>`${ROLE[z[k]][0]} (zone ${k})`;return F.k==="fb"?`${n(F.b)} is level with or closer to the net than ${n(F.a)}, who must be in front of them.`:`${n(F.a)} must be to the left of ${n(F.b)}.`;}
+function spotsNow(st,c){const s=c.setter;if(st.after)return baseSpots(c.z,s);return st.mom==="serve"?serveSpots(c.z,s,st.rules):receiveSpots(c.z,s);}
+function courtShell(id,inner){return `<svg class="rcourt" id="${id}" viewBox="-74 -34 414 418" role="img">
+  <defs><marker id="rah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <rect x="-66" y="140" width="56" height="190" rx="6" class="rbench"/><text x="-38" y="134" text-anchor="middle" class="rlab rsm">LIBERO ZONE</text>
+  <rect x="0" y="0" width="300" height="330" class="rfl"/><line x1="0" y1="110" x2="300" y2="110" class="r3m"/><rect x="-6" y="-8" width="312" height="8" class="rnet"/>
+  <text x="150" y="-14" text-anchor="middle" class="rlab">NET</text><text x="150" y="380" text-anchor="middle" class="rlab">SERVICE ZONE</text>
+  ${[1,2,3,4,5,6].map(k=>`<text class="zl" x="${ZP[k][0]+32}" y="${ZP[k][1]-28}">${k}</text>`).join("")}${inner}</svg>`;}
+const nodeInner=(r,extra)=>{const [nm,col]=ROLE[r];return `<circle r="22" fill="${col}"/><text y="5" text-anchor="middle">${r}</text><text class="rn" y="36" text-anchor="middle">${esc(nm)}</text>${extra||""}`;};
+const zBadge=k=>`<g class="rzb"${k?"":' style="display:none"'}><circle cx="17" cy="-17" r="9"/><text class="rz" x="17" y="-13.5" text-anchor="middle">${k||""}</text></g>`;
+const nodeSVG=(r,extra)=>`<g class="rp" data-r="${r}">${nodeInner(r,extra)}</g>`;
+function renderRot(){if(RS.quiz){renderQuiz();return;}const sig=RS.sys;
+  if(!$("#rotv")||RS.sig!==sig){RS.sig=sig;const roles=[...new Set([...SYS[RS.sys].lineup,"L"])];
+    $("#tpanel").innerHTML=`<div class="rgrid" id="rotv"><div class="v5card"><div class="row rtop"><div class="seg" role="group" aria-label="System">${Object.keys(SYS).map(s=>`<button type="button" data-rsys="${s}">${s}</button>`).join("")}</div>
+       <div class="seg" role="group" aria-label="Moment"><button type="button" data-rmom="receive">We receive</button><button type="button" data-rmom="serve">We serve</button></div>
+       <button type="button" class="btn sm primary" id="rswitch"></button></div>
+      <div class="row rtop"><label class="rlib"><input type="checkbox" id="rlib"> Libero in for the back-row middle</label><label class="rlib"><input type="checkbox" id="rpairs"> Show the overlap pairs</label>
+       <label class="rlib">Rules <select id="rrules"><option value="fivb">FIVB 2025-28</option><option value="order">Serving team in order (USA, school)</option></select></label></div>
+      <div class="rnav">${[0,1,2,3,4,5].map(r=>`<button type="button" data-rrot="${r}"><b>${r+1}</b><small></small></button>`).join("")}</div>
+      ${courtShell("rsvg",`<g id="rlines"></g><g id="rarrows"></g>${roles.map(r=>nodeSVG(r,zBadge(""))).join("")}`)}
+      <div class="row rplay"><button type="button" class="btn sm" data-rstep="-1" aria-label="Previous rotation">◀ Rotate back</button><button type="button" class="btn sm" data-rstep="1">Rotate ▶</button>
+       <button type="button" class="btn sm" id="rauto"></button><button type="button" class="btn sm" id="rquiz">Quiz: spot the overlap</button></div></div>
+     <div class="stack" id="rside"></div></div>`;}
+  paintRot();}
+function paintRot(){const c=court(RS),pos=spotsNow(RS,c),z=c.z,setter=c.setter,sZone=zoneIn(c.z0,setter),front=[4,3,2].map(k=>z[k]),hitters=front.filter(r=>r!==setter&&r!=="L").length;
+  $$("[data-rsys]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.rsys===RS.sys));$$("[data-rmom]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.rmom===RS.mom));
+  $$("[data-rrot]").forEach(b=>{const r=+b.dataset.rrot,zz=lineupFor(RS.sys,r);b.setAttribute("aria-pressed",r===RS.rot);b.querySelector("small").textContent="Setter in "+zoneIn(zz,setterOf(RS.sys,zz));});
+  $("#rlib").checked=RS.lib;$("#rpairs").checked=RS.pairs;$("#rrules").value=RS.rules;
+  $("#rswitch").textContent=RS.after?(RS.mom==="serve"?"◀ Back to the serve":"◀ Back to receive"):"Play the switch ▶";
+  $("#rauto").textContent=RS.auto?"■ Stop":"▶ Walk through all six";
+  $("#rsvg").setAttribute("aria-label",`Rotation ${RS.rot+1}, ${RS.sys}, ${RS.after?"base positions after the switch":RS.mom==="serve"?"positions when we serve":"serve-receive formation"}`);
+  // players: on court, or waiting in the libero zone
+  $$("#rsvg .rp").forEach(g=>{const r=g.dataset.r,on=Object.values(z).includes(r),p=on?pos[r]:BENCH,zk=on?zoneIn(z,r):null;
+    g.style.transform=`translate(${p[0]}px,${p[1]}px)`;g.classList.toggle("off",!on);g.style.display=r==="L"&&!RS.lib?"none":"";
+    g.classList.toggle("setter",r===setter);const zb=g.querySelector(".rzb");zb.style.display=on&&!RS.after?"":"none";zb.querySelector("text").textContent=zk||"";});
+  // arrows for the switch, from the formation to base
+  const from=RS.mom==="serve"?serveSpots(z,setter,RS.rules):receiveSpots(z,setter);
+  $("#rarrows").innerHTML=RS.after?Object.values(z).map(r=>{const o=from[r],p=pos[r];if(Math.hypot(o[0]-p[0],o[1]-p[1])<30)return "";
+    const mx=(o[0]+p[0])/2,my=(o[1]+p[1])/2,dx=p[0]-o[0],dy=p[1]-o[1],len=Math.hypot(dx,dy),cx=mx-dy/len*28,cy=my+dx/len*28,u=(a,b,k)=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k];
+    const s0=u(o,[cx,cy],24/Math.hypot(cx-o[0],cy-o[1])),e0=u(p,[cx,cy],27/Math.hypot(cx-p[0],cy-p[1]));
+    return `<circle cx="${o[0]}" cy="${o[1]}" r="22" class="rghost"/><path d="M${s0[0].toFixed(1)} ${s0[1].toFixed(1)}Q${cx.toFixed(1)} ${cy.toFixed(1)} ${e0[0].toFixed(1)} ${e0[1].toFixed(1)}" class="rarr" fill="none" marker-end="url(#rah)"/>`;}).join(""):"";
+  // overlap pairs: who must be in front of / beside whom (only meaningful at the serve)
+  const checkServe=RS.mom==="serve"&&RS.rules!=="fivb",checked=!RS.after&&(RS.mom==="receive"||checkServe),F=checked?overlapFaults(pos,z,RS.mom==="serve"):[];
+  $("#rlines").innerHTML=RS.pairs&&checked?[...FB.map(p=>[...p,"fb"]),...LR.map(p=>[...p,"lr"])].filter(([a,b])=>!(RS.mom==="serve"&&(a===1||b===1))).map(([a,b,k])=>{const A=pos[z[a]],B=pos[z[b]],bad=F.some(f=>f.a===a&&f.b===b);
+    return `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" class="rpair ${k} ${bad?"bad":""}"/>`;}).join(""):"";
+  // side panel
+  const role=r=>ROLE[r][0],passers=RS.mom==="receive"&&!RS.after?passersOf(z):[];
+  const fromName=r=>{const k=zoneIn(z,r);return ZNAME[k];},baseName=p=>{const x=p[0]<100?"left":p[0]<200?"middle":"right";return (p[1]<120?(x==="middle"?"middle front":x+" front"):(x==="middle"?"middle back":x+" back"));};
+  const moves=Object.values(z).map(r=>{const b=baseSpots(z,setter)[r],to=baseName(b),fr=fromName(r);return fr===to?null:`<li><b>${esc(role(r))}</b>: ${fr} → ${to}</li>`;}).filter(Boolean);
+  const relNote={1:"hides behind the right-front player and steps to the target as the server hits the ball. The shortest release.",6:"starts behind the middle-front player and runs straight up to the target.",5:"stacks behind the left-front player and has the longest run, along the net to the right. Often the hardest rotation to pass in."}[sZone];
+  const ruleServe=RS.rules==="fivb"?"Under the FIVB 2025-28 rules your team may stand anywhere when you serve, so players start in their base spots and only the server has to come in.":"Under rules that keep the serving team in order (USA Volleyball, most school rules), players stand in their rotation zones at the serve and switch as soon as the ball is hit.";
+  $("#rside").innerHTML=`<div class="v5card"><div class="kicker">Rotation ${RS.rot+1} · ${esc(RS.sys)} · ${RS.after?"after the switch":RS.mom==="serve"?"we serve":"we receive"}</div><h3>Setter in zone ${sZone}</h3>
+    <ul class="rfacts"><li><b>${hitters}</b> front-row attacker${hitters===1?"":"s"}: ${front.filter(r=>r!==setter&&r!=="L").map(role).join(", ")}</li>
+     <li><b>${esc(role(setter))}</b> is in the ${FRONT.includes(sZone)?"front row: may attack or dump the second ball":"back row: may not attack a ball above the net from in front of the 3 m line"}</li>
+     ${RS.mom==="serve"?`<li><b>${esc(role(z[1]))}</b> serves from zone 1</li>`:`<li>If you win the rally you rotate, and <b>${esc(role(c.z0[2]))}</b> moves to zone 1 to serve</li>`}
+     ${c.libFor?`<li>Libero is in for <b>${esc(role(c.z0[c.libFor]))}</b> (zone ${c.libFor})</li>`:RS.lib?`<li>Libero is off: ${c.libServeNote?`the middle in zone 1 serves (under FIVB rules the libero cannot serve; USA, NCAA and US high-school rules let the libero serve in one rotation)`:"both middles are in the front row"}</li>`:""}
+     ${passers.length?`<li>Passing: ${passers.map(role).join(", ")}</li>`:""}</ul>
+    ${!RS.after&&RS.mom==="receive"&&!FRONT.includes(sZone)?`<p class="small">The setter ${relNote}</p>`:""}
+    ${!RS.after&&RS.mom==="serve"?`<p class="small">${ruleServe}</p>`:""}
+    ${checked?`<p class="small rcheck ${F.length?"bad":"ok"}">${F.length?"Overlap: "+F.map(f=>faultText(f,z)).join(" "):RS.mom==="receive"?"Checked: this formation is legal. Every player is in front of, behind, left or right of the right teammates.":"Checked: in rotational order."}</p>`:""}
+    <p class="small muted">${esc(SYS[RS.sys].note)}</p></div>
+   <div class="v5card"><div class="kicker">The switch</div>${moves.length?`<ul class="rfacts">${moves.join("")}</ul>`:`<p class="small">Everyone is already in their base spot.</p>`}
+    <p class="small muted">Base positions shown are a common arrangement: front row outside left, middle in the middle, setter or opposite right; back row setter or opposite right back, outside middle back, libero left back. Many teams vary the back row, so follow your coach's system.</p></div>
+   <div class="v5card"><div class="kicker">Overlap rule</div><p class="small">At the moment of the serve, each front-row player of the receiving team must be closer to the net than the back-row player directly behind them (4 ahead of 5, 3 ahead of 6, 2 ahead of 1). Side to side, the players in each row must stay in order: 4 left of 3, 3 left of 2, and 5 left of 6, 6 left of 1. Only the feet count, and diagonal players have no rule between them. Turn on "Show the overlap pairs" to see the pairs.</p></div>`;}
+function rotStep(d){RS.rot=(RS.rot+d+6)%6;RS.after=false;paintRot();}
+function autoStop(){if(RS.auto){clearTimeout(RS.auto);RS.auto=0;}}
+function autoRun(){autoStop();let phase=0;const go=()=>{if(tab!=="rotations"||RS.quiz||!$("#rotv")){RS.auto=0;return;}
+    if(phase%2===0){RS.after=true;}else{RS.rot=(RS.rot+1)%6;RS.after=false;}phase++;paintRot();RS.auto=setTimeout(go,phase%2?2200:2600);};
+  RS.after=false;paintRot();RS.auto=setTimeout(go,1800);paintRot();}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-rsys],[data-rmom],[data-rrot],[data-rstep],#rswitch,#rauto,#rquiz");if(!b||!$("#rotv"))return;
+  if(b.id==="rauto"){if(RS.auto){autoStop();paintRot();}else autoRun();return;}
+  autoStop();
+  if(b.dataset.rsys){RS.sys=b.dataset.rsys;RS.after=false;renderRot();return;}
+  if(b.dataset.rmom){RS.mom=b.dataset.rmom;RS.after=false;}
+  if(b.dataset.rrot){RS.rot=+b.dataset.rrot;RS.after=false;}
+  if(b.dataset.rstep){rotStep(+b.dataset.rstep);return;}
+  if(b.id==="rswitch")RS.after=!RS.after;
+  if(b.id==="rquiz"){RS.quiz={n:0,score:0};newQuiz();renderRot();return;}
+  paintRot();});
+document.addEventListener("change",e=>{if(!$("#rotv"))return;if(e.target.id==="rlib"){RS.lib=e.target.checked;paintRot();}if(e.target.id==="rpairs"){RS.pairs=e.target.checked;paintRot();}if(e.target.id==="rrules"){RS.rules=e.target.value;paintRot();}});
+document.addEventListener("keydown",e=>{if(V5.view()!=="tools"||tab!=="rotations"||RS.quiz||e.target.closest("input,textarea,select"))return;if(e.key==="ArrowRight"){autoStop();rotStep(1);}if(e.key==="ArrowLeft"){autoStop();rotStep(-1);}if(e.key===" "&&!e.target.closest("button")){e.preventDefault();autoStop();RS.after=!RS.after;paintRot();}});
+
+VB.tools.rot={court,receiveSpots,serveSpots,baseSpots,overlapFaults}; // used by the headless checks
+/* ---------- quiz: is this receive formation legal? ---------- */
+function newQuiz(){const Q=RS.quiz,sys=Object.keys(SYS)[Math.floor(Math.random()*3)],rot=Math.floor(Math.random()*6),lib=Math.random()<.75,st={sys,rot,lib,mom:"receive"},c=court(st),pos=receiveSpots(c.z,c.setter);
+  let fault=null;if(Math.random()<.6){const all=[...FB.map(p=>[...p,"fb"]),...LR.map(p=>[...p,"lr"])],[a,b,k]=all[Math.floor(Math.random()*all.length)],A=pos[c.z[a]],B=pos[c.z[b]],ax=k==="fb"?1:0;
+    const t=A[ax];A[ax]=B[ax];B[ax]=t;if(Math.abs(A[ax]-B[ax])<16){A[ax]+=k==="fb"?16:12;}fault={a,b,k};}
+  Object.assign(Q,{st,c,pos,answered:null,faults:overlapFaults(pos,c.z)});}
+function renderQuiz(){const Q=RS.quiz,{c,pos}=Q,z=c.z,F=Q.faults,legal=!F.length,ans=Q.answered;
+  const marks=ans!=null?F.map(f=>{const A=pos[z[f.a]],B=pos[z[f.b]];return `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" class="rpair bad"/><circle cx="${A[0]}" cy="${A[1]}" r="28" class="rbad"/><circle cx="${B[0]}" cy="${B[1]}" r="28" class="rbad"/>`;}).join(""):"";
+  const nodes=Object.values(z).map(r=>`<g class="rp" style="transform:translate(${pos[r][0]}px,${pos[r][1]}px)">${nodeInner(r,zBadge(zoneIn(z,r)))}</g>`).join("");
+  const right=ans!=null&&(ans===legal);
+  $("#tpanel").innerHTML=`<div class="rgrid"><div class="v5card"><div class="row rtop"><b>Spot the overlap</b><span class="small muted">${esc(Q.st.sys)} · rotation ${Q.st.rot+1} · receiving serve</span></div>
+    ${courtShell("rqsvg",`<g>${marks}</g>${nodes}`)}
+    <div class="row rplay">${ans==null?`<button type="button" class="btn primary" data-qa="1">Legal</button><button type="button" class="btn primary" data-qa="0">Overlap fault</button>`:`<button type="button" class="btn primary" id="qnext">Next formation</button>`}<button type="button" class="btn sm" id="qexit">Back to the viewer</button></div></div>
+   <div class="stack"><div class="v5card"><div class="kicker">Score</div><h3>${Q.score} / ${Q.n}</h3><p class="small">The ball is about to be served. Is the receiving team in a legal formation? The small number on each player is their rotation zone: that, not where they stand, decides who they must stay in front of or beside.</p></div>
+    ${ans!=null?`<div class="v5card ${right?"qok":"qbad"}"><div class="kicker">${right?"Correct":"Not quite"}</div><p>${legal?"Legal: every front-row player is ahead of the player behind them, and each row is in left-to-right order.":F.map(f=>esc(faultText(f,z))).join("<br>")}</p></div>`:""}
+    <div class="v5card"><div class="kicker">The pairs to check</div><p class="small">Front and back: 4 ahead of 5, 3 ahead of 6, 2 ahead of 1. Side to side: 4 left of 3, 3 left of 2, 5 left of 6, 6 left of 1. Nothing else matters.</p></div></div></div>`;}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-qa],#qnext,#qexit");if(!b||!RS.quiz)return;const Q=RS.quiz;
+  if(b.dataset.qa!=null&&Q.answered==null){Q.answered=b.dataset.qa==="1";Q.n++;if(Q.answered===!Q.faults.length)Q.score++;renderQuiz();return;}
+  if(b.id==="qnext"){newQuiz();renderQuiz();return;}
+  if(b.id==="qexit"){RS.quiz=null;RS.sig="";renderRot();}});
+
+/* ================= plays ================= */
+const PCOL={S:"#ffc145",OH:"var(--gold)",OH2:"var(--gold)",MB:"#45c8ff",OPP:"#9d86ff",L:"#4fd394"};
+const PNAME={S:"Setter",OH:"Outside",OH2:"Outside (back row)",MB:"Middle",OPP:"Opposite",L:"Libero"};
+const OPTQ={offence:"Choose the set",receive:"Choose the serve",serve:"Choose the target",defence:"Choose their attack",cover:"What happens"};
+let PS={id:null,cat:"all",t:0,playing:false,speed:1,loop:false,opt:0,raf:0,last:0,who:null};
+const smooth=u=>{u=clamp(u,0,1);return u*u*(3-2*u);};
+function along(pts,u){if(pts.length<2)return pts[0];const L=[];let tot=0;for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);L.push(d);tot+=d;}
+  let s=u*tot;for(let i=0;i<L.length;i++){if(s<=L[i]||i===L.length-1){const k=L[i]?Math.min(1,s/L[i]):1;return [pts[i][0]+(pts[i+1][0]-pts[i][0])*k,pts[i][1]+(pts[i+1][1]-pts[i][1])*k];}s-=L[i];}return pts[pts.length-1];}
+const posAt=(p,t)=>p.path&&p.t?along(p.path,smooth((t-p.t[0])/((p.t[1]-p.t[0])||1))):p.at;
+const playOf=()=>(window.VB_PLAYS||[]).find(p=>p.id===PS.id)||(window.VB_PLAYS||[])[0];
+const optOf=pl=>(pl.options||[])[PS.opt]||null;
+const ballsOf=pl=>{const o=optOf(pl);return [...(pl.ball||[]),...(o?o.ball:[])];};
+function ballAt(pl,t){const B=ballsOf(pl);if(!B.length||t<B[0].t[0])return null;let s=B[0];for(const x of B)if(t>=x.t[0])s=x;
+  const u=clamp((t-s.t[0])/((s.t[1]-s.t[0])||1),0,1),h=(s.h||0)*4*u*(1-u);return {p:[s.a[0]+(s.b[0]-s.a[0])*u,s.a[1]+(s.b[1]-s.a[1])*u],h};}
+function beatsOf(pl){const o=optOf(pl),B=(pl.beats||[]).map(b=>({t:b[0],text:b[1]}));if(o&&o.say&&o.ball[0])B.push({t:o.ball[0].t[0],text:o.say,opt:true});return B.sort((a,b)=>a.t-b.t);}
+const beatNow=(pl,t)=>{let c=null;beatsOf(pl).forEach(b=>{if(t>=b.t-1e-6)c=b;});return c;};
+const actOf=(pl,p)=>{const o=optOf(pl);if(o&&o.hitter===p.r)return pl.cat==="defence"||pl.cat==="receive"?(p.act==="block"?"block":"dig"):p.act==="serve"?"serve":"hit";return p.act==="hit"&&o&&o.hitter!==p.r?"decoy":p.act;};
+function playSVG(pl){const o=optOf(pl),ar=(a,b,cls)=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" class="${cls}" marker-end="url(#pah)"/>`;
+  const routes=(pl.players||[]).filter(p=>p.path&&p.path.length>1).map(p=>{const a=actOf(pl,p),e=p.path[p.path.length-1];
+    return `<polyline points="${p.path.map(q=>q.join(",")).join(" ")}" class="proute ${a} ${o&&o.hitter===p.r?"chosen":""}" marker-end="url(#pah)"/>${p.label?`<text x="${e[0]}" y="${e[1]+(e[1]<40?34:-18)}" text-anchor="middle" class="plab ${o&&o.hitter===p.r?"on":""}">${esc(p.label)}</text>`:""}`;}).join("");
+  const oroutes=(pl.opp||[]).filter(p=>p.path).map(p=>`<polyline points="${p.path.map(q=>q.join(",")).join(" ")}" class="proute opp"/>`).join("");
+  // the chosen option is drawn bright; the other options are faint so you can see the choice
+  const others=(pl.options||[]).filter((x,i)=>i!==PS.opt).map(x=>x.ball[0]?ar(x.ball[0].a,x.ball[0].b,"pball alt"):"").join("");
+  const balls=ballsOf(pl).map(s=>ar(s.a,s.b,"pball")+(s.label?`<text x="${(s.a[0]+s.b[0])/2+8}" y="${(s.a[1]+s.b[1])/2-6}" class="plab b">${esc(s.label)}</text>`:"")).join("");
+  const zones=(pl.zones||[]).map(z=>`<rect x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" class="pzone"/><text x="${z.x+z.w/2}" y="${z.y+z.h-7}" text-anchor="middle" class="plab">${esc(z.label)}</text>`).join("");
+  const shadow=pl.shadow?`<polygon points="${pl.shadow.map(q=>q.join(",")).join(" ")}" class="pshadow"/>`:"";
+  const opp=(pl.opp||[]).map((p,i)=>`<g class="pp opp" data-o="${i}"><circle r="12"/>${p.label?`<text y="-17" text-anchor="middle" class="plab">${esc(p.label)}</text>`:""}</g>`).join("");
+  const me=(pl.players||[]).map((p,i)=>`<g class="pp me ${o&&o.hitter===p.r?"chosen":""} ${PS.who===i?"who":""}" data-p="${i}" tabindex="0" role="button" aria-label="${esc(PNAME[p.r]||p.r)}: ${esc(p.job||VB_PLAY_JOB[actOf(pl,p)]||"")}"><circle r="13" fill="${PCOL[p.r]||"#ccc"}"/><text y="4" text-anchor="middle">${p.r==="OH2"?"OH":p.r}</text></g>`).join("");
+  return `<svg class="pcourt" id="psvg" viewBox="-34 -${pl.cat==="serve"?310:150} 368 ${pl.cat==="serve"?650:470}" role="img" aria-label="${esc(pl.name)}: animated diagram">
+   <defs><marker id="pah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+   <rect x="0" y="-${pl.cat==="serve"?300:150}" width="300" height="${pl.cat==="serve"?300:150}" class="pfl opp"/><rect x="0" y="0" width="300" height="300" class="pfl"/>
+   <line x1="0" y1="100" x2="300" y2="100" class="p3m"/><line x1="0" y1="-100" x2="300" y2="-100" class="p3m"/>
+   <rect x="-8" y="-3" width="316" height="6" class="pnet"/><rect x="-3" y="-10" width="5" height="20" class="pant"/><rect x="298" y="-10" width="5" height="20" class="pant"/>
+   <text x="150" y="${pl.cat==="serve"?345:316}" text-anchor="middle" class="rlab">${pl.cat==="serve"?"":"OUR END LINE"}</text><text x="150" y="-${pl.cat==="serve"?290:136}" text-anchor="middle" class="rlab">OPPONENT</text>
+   ${zones}${shadow}${oroutes}${routes}${others}${balls}${opp}${me}<g id="pball"><ellipse class="pbsh" rx="6" ry="3"/><circle class="pb" r="7"/></g></svg>`;}
+function paintPlay(){const pl=playOf(),t=PS.t,svg=$("#psvg");if(!pl||!svg)return;
+  $$(".pp[data-p]",svg).forEach(g=>{const p=pl.players[+g.dataset.p],q=posAt(p,t);g.setAttribute("transform",`translate(${q[0]},${q[1]})`);});
+  $$(".pp[data-o]",svg).forEach(g=>{const p=pl.opp[+g.dataset.o],q=posAt(p,t);g.setAttribute("transform",`translate(${q[0]},${q[1]})`);});
+  const b=ballAt(pl,t),bg=$("#pball",svg);if(!b)bg.style.display="none";else{bg.style.display="";$(".pbsh",bg).setAttribute("cx",b.p[0]);$(".pbsh",bg).setAttribute("cy",b.p[1]);const c=$(".pb",bg);c.setAttribute("cx",b.p[0]);c.setAttribute("cy",b.p[1]-b.h*.25);c.setAttribute("r",(6+b.h/22).toFixed(1));}
+  const r=$("#pscrub");if(r&&document.activeElement!==r)r.value=Math.round(t*1000);const pb=$("#pplay");if(pb)pb.textContent=PS.playing?"❚❚ Pause":t>=1?"↻ Replay":"▶ Play";
+  const bn=beatNow(pl,t),cap=$("#pcap");if(cap){const txt=bn?bn.text:"Press play.";if(cap.dataset.txt!==txt){cap.dataset.txt=txt;cap.textContent=txt;cap.classList.toggle("opt",!!(bn&&bn.opt));cap.classList.remove("in");void cap.offsetWidth;cap.classList.add("in");}}
+  $$(".pticks button").forEach(x=>x.classList.toggle("past",+x.dataset.pt<=t+1e-6));}
+function loopPlay(now){if(!PS.playing)return;const dt=PS.last?(now-PS.last)/1000:0;PS.last=now;PS.t=Math.min(1,PS.t+dt*PS.speed/4.8);paintPlay();
+  if(PS.t>=1){if(PS.loop){PS.t=0;}else{PS.playing=false;paintPlay();return;}}PS.raf=requestAnimationFrame(loopPlay);}
+function startPlay(){if(PS.t>=1)PS.t=0;PS.playing=true;PS.last=0;cancelAnimationFrame(PS.raf);PS.raf=requestAnimationFrame(loopPlay);}
+function stopPlay(){PS.playing=false;cancelAnimationFrame(PS.raf);}
+function jumpBeat(d){const pl=playOf(),B=[0,...beatsOf(pl).map(b=>b.t),1].filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>a-b);stopPlay();
+  if(d>0){const n=B.find(x=>x>PS.t+.005);PS.t=n==null?1:n;}else{const p=B.filter(x=>x<PS.t-.005).pop();PS.t=p==null?0:p;}paintPlay();}
+function whoHTML(pl){if(PS.who==null||!pl.players[PS.who])return `<span class="muted">Tap a player to see their job.</span>`;const p=pl.players[PS.who],a=actOf(pl,p);
+  return `<i style="background:${PCOL[p.r]}"></i><b>${esc(PNAME[p.r]||p.r)}</b> · ${esc(p.job&&(a===p.act||!VB_PLAY_JOB[a])?p.job:(VB_PLAY_JOB[a]||""))}`;}
+function renderPlays(){const P=window.VB_PLAYS||[],C=window.VB_PLAY_CATS||[];if(!PS.id&&P.length)PS.id=P[0].id;const pl=playOf();if(!pl){$("#tpanel").innerHTML=`<p class="muted">No plays.</p>`;return;}
+  const list=P.filter(p=>PS.cat==="all"||p.cat===PS.cat),O=pl.options||[],B=beatsOf(pl);if(PS.opt>=O.length)PS.opt=0;
+  $("#tpanel").innerHTML=`<div class="chips pcats">${[["all","All"],...C].map(([k,l])=>`<button type="button" class="chip" data-pcat="${k}" aria-pressed="${PS.cat===k}">${esc(l)}${k==="all"?"":` <small>${P.filter(p=>p.cat===k).length}</small>`}</button>`).join("")}</div>
+   <div class="plgrid"><div class="plist">${list.map(p=>`<button type="button" class="pitem" data-play="${p.id}" aria-pressed="${p.id===pl.id}"><span class="kicker">${esc((C.find(c=>c[0]===p.cat)||["",""])[1])}</span><b>${esc(p.name)}</b><small>${esc(p.sys)}${p.options?` · ${p.options.length} options`:""}</small></button>`).join("")}</div>
+    <div class="v5card pstage">${O.length?`<div class="popts"><span class="small"><b>${esc(OPTQ[pl.cat]||"Options")}</b></span>${O.map((o,i)=>`<button type="button" class="chip" data-popt="${i}" aria-pressed="${i===PS.opt}">${esc(o.label)}</button>`).join("")}</div>`:""}
+     <p class="pcap" id="pcap" aria-live="polite"></p>${playSVG(pl)}
+     <div class="pscrubw"><input type="range" id="pscrub" min="0" max="1000" value="${Math.round(PS.t*1000)}" aria-label="Scrub through the play"><div class="pticks">${B.map(b=>`<button type="button" data-pt="${b.t}" style="left:${(b.t*100).toFixed(1)}%" title="${esc(b.text)}" aria-label="Jump to: ${esc(b.text)}"></button>`).join("")}</div></div>
+     <div class="row rplay"><button type="button" class="btn sm" data-pbeat="-1" aria-label="Previous moment">⏮</button><button type="button" class="btn sm primary" id="pplay">▶ Play</button><button type="button" class="btn sm" data-pbeat="1" aria-label="Next moment">⏭</button>
+      <div class="seg" role="group" aria-label="Speed">${[[.5,"½×"],[1,"1×"],[1.5,"1½×"]].map(([v,l])=>`<button type="button" data-pspeed="${v}" aria-pressed="${PS.speed===v}">${l}</button>`).join("")}</div><label class="rlib"><input type="checkbox" id="ploop" ${PS.loop?"checked":""}> Loop</label></div>
+     <p class="pwho small" id="pwho">${whoHTML(pl)}</p>
+     <div class="plegend">${[...new Set(pl.players.map(p=>p.r))].map(r=>`<span><i style="background:${PCOL[r]}"></i>${esc(PNAME[r]||r)}</span>`).join("")}<span><i class="o"></i>Opponent</span><span><i class="b"></i>Ball</span>${O.length>1?`<span><i class="a"></i>Other options</span>`:""}</div></div>
+    <div class="stack"><div class="v5card"><div class="kicker">${esc(pl.sys)}</div><h3>${esc(pl.name)}</h3><p>${esc(pl.sum)}</p><p class="small"><b>When:</b> ${esc(pl.when)}</p></div>
+     <div class="v5card"><div class="kicker">How it runs</div><ol class="steps">${pl.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>${pl.tip?`<p class="small muted">${esc(pl.tip)}</p>`:""}</div>
+     ${O.length?`<div class="v5card"><div class="kicker">${esc(OPTQ[pl.cat]||"Options")}</div><ul class="popl">${O.map((o,i)=>`<li class="${i===PS.opt?"on":""}"><button type="button" class="linkbtn" data-popt="${i}">${esc(o.label)}</button>${o.say?`<span class="small muted">${esc(o.say)}</span>`:""}</li>`).join("")}</ul></div>`:""}
+     ${pl.cat==="offence"?`<details class="v5card rule"><summary>Set calls</summary><dl class="gloss">${(window.VB_SET_CALLS||[]).map(c=>`<div><dt>${esc(c[0])}</dt><dd>${esc(c[1])}</dd></div>`).join("")}</dl><p class="small muted">Numbers and names vary from team to team. Agree your calls with your setter.</p></details>`:""}</div></div>`;
+  paintPlay();}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-pcat],[data-play],#pplay,[data-popt],[data-pbeat],[data-pspeed],[data-pt],#psvg .pp.me");if(!b)return;
+  if(b.dataset.pcat){PS.cat=b.dataset.pcat;const l=(window.VB_PLAYS||[]).filter(p=>PS.cat==="all"||p.cat===PS.cat);if(l.length&&!l.some(p=>p.id===PS.id))PS.id=l[0].id;PS.t=0;PS.opt=0;PS.who=null;stopPlay();renderPlays();return;}
+  if(b.dataset.play){PS.id=b.dataset.play;PS.t=0;PS.opt=0;PS.who=null;stopPlay();renderPlays();startPlay();return;}
+  if(b.dataset.popt!=null){PS.opt=+b.dataset.popt;PS.t=0;stopPlay();renderPlays();startPlay();return;}
+  if(b.dataset.pbeat){jumpBeat(+b.dataset.pbeat);return;}
+  if(b.dataset.pspeed){PS.speed=+b.dataset.pspeed;$$("[data-pspeed]").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.pspeed===PS.speed));return;}
+  if(b.dataset.pt!=null){stopPlay();PS.t=+b.dataset.pt;paintPlay();return;}
+  if(b.dataset.p!=null){PS.who=PS.who===+b.dataset.p?null:+b.dataset.p;$$("#psvg .pp.me").forEach(g=>g.classList.toggle("who",+g.dataset.p===PS.who));$("#pwho").innerHTML=whoHTML(playOf());return;}
+  if(b.id==="pplay"){if(PS.playing){stopPlay();paintPlay();}else startPlay();}});
+document.addEventListener("input",e=>{if(e.target.id==="pscrub"){stopPlay();PS.t=+e.target.value/1000;paintPlay();}});
+document.addEventListener("change",e=>{if(e.target.id==="ploop")PS.loop=e.target.checked;});
+document.addEventListener("keydown",e=>{if(V5.view()!=="tools"||tab!=="plays"||e.target.closest("input,textarea,select"))return;
+  if(e.key===" "&&!e.target.closest("button")){e.preventDefault();if(PS.playing){stopPlay();paintPlay();}else startPlay();}
+  if(e.key==="ArrowRight"){e.preventDefault();jumpBeat(1);}if(e.key==="ArrowLeft"){e.preventDefault();jumpBeat(-1);}
+  if((e.key==="Enter")&&e.target.closest("#psvg .pp.me"))e.target.closest("#psvg .pp.me").dispatchEvent(new MouseEvent("click",{bubbles:true}));});
 
 /* ================= calculators ================= */
 function renderCalc(){const p=S().profile||{},u=VB.lu(),L=v=>v==null?"":VB.lenOut(v),T=(S().tests||[]).filter(t=>t.kind==="vert"&&!t.ex).sort((a,b)=>a.date<b.date?-1:1),vj=T.length?T[T.length-1].cm:p.jump;
@@ -243,14 +431,42 @@ document.addEventListener("submit",e=>{if(e.target.matches("form.calc"))e.preven
 document.addEventListener("click",e=>{const b=e.target.closest("[data-savejump]");if(!b)return;if(VB.addTest(+b.dataset.savejump,"film-airtime")){VB.save();toast("Saved as today's jump test. +50 XP");}});
 
 /* ================= rules and glossary ================= */
-let q="";
-function renderRules(){const R=window.VB_RULES||[],G=window.VB_GLOSSARY||[],m=s=>!q||s.toLowerCase().includes(q.toLowerCase());
-  const rs=R.filter(r=>m(r.t+" "+r.b)),gs=G.filter(g=>m(g[0]+" "+g[1]));
+let q="",rsec="rules",rcat="all";const RQ={i:0,score:0,ans:null,order:null};
+const RSECS=[["rules","Rules"],["new","What changed"],["signals","Referee signals"],["myths","Myth or rule?"],["quiz","Quiz"],["formats","Indoor, beach, sitting"],["gloss","Glossary"]];
+const TAGS={new:"New in 2025",test:"Being tested","2025":"2025 rules"};
+function renderRules(){const R=window.VB_RULES||[],G=window.VB_GLOSSARY||[],CAT=window.VB_RULE_CATS||[],m=s=>!q||s.toLowerCase().includes(q.toLowerCase());
   const was=document.activeElement&&document.activeElement.id==="rq";
-  $("#tpanel").innerHTML=`<div class="v5card rsearch"><label class="f">Search the rules and terms<input id="rq" type="search" value="${esc(q)}" placeholder="Try libero, overlap, pipe, net" autocomplete="off"></label><span class="small muted">${rs.length} rules · ${gs.length} terms</span></div>
-   <div class="rlgrid"><div class="stack"><div class="kicker">Rules in plain words</div>${rs.map((r,i)=>`<details class="v5card rule" ${q||i<2?"open":""}><summary>${esc(r.t)}</summary><p>${esc(r.b)}</p></details>`).join("")||`<p class="small muted">No rule matches.</p>`}
-     <p class="small muted">Summarised from the FIVB indoor rules that most federations follow. School, college and recreational leagues change some details; check your league's rulebook for anything that decides a match.</p></div>
-    <div class="stack"><div class="kicker">Glossary</div><dl class="gloss">${gs.map(g=>`<div><dt>${esc(g[0])}</dt><dd>${esc(g[1])}</dd></div>`).join("")||`<p class="small muted">No term matches.</p>`}</dl></div></div>`;
+  const rs=R.filter(r=>(q||rcat==="all"||r.c===rcat)&&m(r.t+" "+r.b)),gs=G.filter(g=>m(g[0]+" "+g[1])),sg=(window.VB_SIGNALS||[]).filter(s=>m(s.join(" "))),my=(window.VB_MYTHS||[]).filter(x=>m(x[0]+" "+x[2]));
+  const ruleCard=(r,i)=>`<details class="v5card rule" ${q||i<2?"open":""}><summary>${esc(r.t)}${r.tag?` <span class="rtag ${r.tag}">${TAGS[r.tag]||r.tag}</span>`:""}</summary><p>${esc(r.b)}</p></details>`;
+  const glossHTML=list=>`<dl class="gloss">${list.map(g=>`<div><dt>${esc(g[0])}</dt><dd>${esc(g[1])}</dd></div>`).join("")||`<p class="small muted">No term matches.</p>`}</dl>`;
+  const sigHTML=list=>`<div class="sgrid">${list.map(s=>`<div class="v5card sig"><b>${esc(s[0])}</b><p class="small">${esc(s[1])}</p><span class="small muted">${esc(s[2])}</span></div>`).join("")||`<p class="small muted">No signal matches.</p>`}</div>`;
+  const mythHTML=list=>`<div class="sgrid">${list.map(x=>`<details class="v5card myth"><summary><span class="small muted">Myth or rule?</span><b>${esc(x[0])}</b></summary><span class="rtag ${x[1]===true?"ok":x[1]===false?"myth":"test"}">${x[1]===true?"Rule":x[1]===false?"Myth":"Depends on the rules"}</span><p class="small">${esc(x[2])}</p></details>`).join("")||`<p class="small muted">No myth matches.</p>`}</div>`;
+  let body="";
+  if(q){body=`<div class="rlgrid"><div class="stack"><div class="kicker">Rules · ${rs.length}</div>${rs.map(ruleCard).join("")||`<p class="small muted">No rule matches.</p>`}${my.length?`<div class="kicker">Myths · ${my.length}</div>${mythHTML(my)}`:""}</div>
+     <div class="stack"><div class="kicker">Terms · ${gs.length}</div>${glossHTML(gs)}${sg.length?`<div class="kicker">Signals · ${sg.length}</div>${sigHTML(sg)}`:""}</div></div>`;}
+  else if(rsec==="rules"){body=`<div class="chips rcats">${[["all","All"],...CAT].map(([k,l])=>`<button type="button" class="chip" data-rcat="${k}" aria-pressed="${rcat===k}">${esc(l)}</button>`).join("")}</div>
+     <div class="rcols">${rcat==="all"?CAT.map(([k,l])=>{const g=rs.filter(r=>r.c===k);return g.length?`<div class="rgroup"><div class="kicker">${esc(l)}</div>${g.map((r,i)=>ruleCard(r,k==="match"?i:9)).join("")}</div>`:"";}).join(""):rs.map(ruleCard).join("")}</div>
+     <p class="small muted">Summarised from the FIVB Official Volleyball Rules 2025-2028, with the main USA Volleyball, college and school differences noted. Leagues change details: check your league's rulebook for anything that decides a match.</p>`;}
+  else if(rsec==="new"){body=`<div class="sgrid">${(window.VB_RULE_CHANGES||[]).map(c=>`<div class="v5card sig"><b>${esc(c[0])}</b><p class="small">${esc(c[1])}</p></div>`).join("")}</div><p class="small muted">The FIVB rules for 2025-2028 apply to international play and most national federations that follow FIVB, including Volleyball Canada and U SPORTS. National and school rule sets adopt changes on their own timetable.</p>`;}
+  else if(rsec==="signals")body=`<p class="small muted">The first referee's official hand signals, in words. The referee usually shows which team serves next, then the fault, then the player at fault if needed.</p>`+sigHTML(sg);
+  else if(rsec==="myths")body=`<p class="small muted">Tap a card to see the answer.</p>`+mythHTML(my);
+  else if(rsec==="formats"){const F=window.VB_FORMATS;body=`<div class="v5card tscroll"><table class="ftab"><thead><tr><th></th>${F.cols.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${F.rows.map(r=>`<tr><th>${esc(r[0])}</th>${r.slice(1).map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;}
+  else if(rsec==="gloss")body=glossHTML(gs);
+  else if(rsec==="quiz")body=quizHTML();
+  $("#tpanel").innerHTML=`<div class="v5card rsearch"><label class="f">Search the rules, terms and signals<input id="rq" type="search" value="${esc(q)}" placeholder="Try libero, overlap, pipe, net, screening" autocomplete="off"></label><span class="small muted">${R.length} rules · ${G.length} terms · ${(window.VB_SIGNALS||[]).length} signals</span></div>
+   ${q?"":`<div class="chips rsecs">${RSECS.map(([k,l])=>`<button type="button" class="chip" data-rsec="${k}" aria-pressed="${rsec===k}">${esc(l)}</button>`).join("")}</div>`}${body}`;
   if(was){const i=$("#rq");i.focus();i.setSelectionRange(i.value.length,i.value.length);}}
+function quizHTML(){const Q=window.VB_RULE_QUIZ||[];if(!RQ.order)RQ.order=Q.map((_,i)=>i).sort(()=>Math.random()-.5);
+  if(RQ.i>=Q.length)return `<div class="v5card rquiz"><div class="kicker">Done</div><h3>${RQ.score} / ${Q.length}</h3><p>${RQ.score>=Q.length-2?"Referee material.":RQ.score>=Q.length/2?"Solid. Read the rules you missed and try again.":"Worth a read through the Rules tab, then try again."}</p><button type="button" class="btn primary" id="rqagain">Try again</button></div>`;
+  const x=Q[RQ.order[RQ.i]],a=RQ.ans;
+  return `<div class="v5card rquiz"><div class="kicker">Question ${RQ.i+1} of ${Q.length} · score ${RQ.score}</div><h3>${esc(x.q)}</h3>
+   <div class="row">${x.o.map((o,i)=>`<button type="button" class="btn ${a==null?"":i===x.a?"good":i===a?"bad":""}" data-rqa="${i}" ${a!=null?"disabled":""}>${esc(o)}</button>`).join("")}</div>
+   ${a!=null?`<p class="${a===x.a?"qok":"qbad"}"><b>${a===x.a?"Right.":"Not quite."}</b> ${esc(x.why)}</p><button type="button" class="btn primary" id="rqnext">Next</button>`:""}</div>`;}
 document.addEventListener("input",e=>{if(e.target.id==="rq"){q=e.target.value;renderRules();}});
+document.addEventListener("click",e=>{const b=e.target.closest("[data-rsec],[data-rcat],[data-rqa],#rqnext,#rqagain");if(!b)return;const Q=window.VB_RULE_QUIZ||[];
+  if(b.dataset.rsec){rsec=b.dataset.rsec;renderRules();return;}
+  if(b.dataset.rcat){rcat=b.dataset.rcat;renderRules();return;}
+  if(b.dataset.rqa!=null&&RQ.ans==null){RQ.ans=+b.dataset.rqa;if(RQ.ans===Q[RQ.order[RQ.i]].a)RQ.score++;renderRules();return;}
+  if(b.id==="rqnext"){RQ.i++;RQ.ans=null;renderRules();return;}
+  if(b.id==="rqagain"){Object.assign(RQ,{i:0,score:0,ans:null,order:null});renderRules();}});
 })();

@@ -131,7 +131,7 @@ VB.squad=(function(){
     const inv=pick.friends.filter(f=>R.mutual.includes(f)),gc=VB.groupCompat([p.pos,...inv.map(f=>(players[f]||{}).pos||"any")]),myLvl=Math.round(lvlAvg(stats())||2),sug=inv.length?suggestDrills(gc.skills,inv.length+1,myLvl):[];
     if(pick.drills===null||pick.drills.some(id=>!sug.some(d=>d.id===id)))pick.drills=sug.slice(0,3).map(d=>d.id);
     const meets=[];o.meets.forEach(m=>meets.push(Object.assign({host:u},m)));R.mutual.forEach(f=>((players[f].meets)||[]).forEach(m=>{if(m&&(m.inv||[]).includes(u))meets.push(Object.assign({host:f},m));}));
-    const upcoming=meets.filter(m=>m.date>=VB.addDays(VB.today(),-1)).sort((a,b)=>(a.date+(a.time||""))<(b.date+(b.time||""))?-1:1);
+    const upcoming=meets.filter(m=>m.date>=VB.today()).sort((a,b)=>(a.date+(a.time||""))<(b.date+(b.time||""))?-1:1);
     const meetCard=m=>{const all=[m.host,...(m.inv||[])],g=VB.groupCompat(all.map(id=>id===u?p.pos:(players[id]||{}).pos||"any")),mine=m.host===u;
       const rs=id=>id===m.host?"Host":({yes:"Going",no:"Can't"}[(id===u?o.rsvp:(players[id]||{}).rsvp||{})[m.id]]||"No reply");
       const dt=new Date(m.date+"T12:00:00");

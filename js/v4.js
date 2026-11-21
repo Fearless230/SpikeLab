@@ -16,9 +16,9 @@ function weekCard(){const phone=matchMedia("(max-width:760px)").matches,host=pho
   // phones: at the top of the session column (the side column comes after the session); desktop: top of the side column
   if(el&&el.parentElement!==host){el.remove();el=null;}
   if(!el){el=document.createElement("div");el.id="weekGlance";el.className="card weekglance";const gd=$("#gameDay");phone&&gd&&gd.parentElement===host?gd.after(el):host.prepend(el);}
-  const today=VB.today(),ws=VB.weekStart(today),target=S().profile.days||3,rem=S().reminder||{days:[]},plan=new Set(rem.days||[]);
+  const today=VB.today(),ws=VB.weekStart(today),target=S().profile.days||3,plan=new Set(VB.cal?VB.cal.trainDays():((S().reminder||{}).days||[]));
   const done=new Set(sessions().filter(s=>s.date>=ws).map(s=>s.date)),n=sessions().filter(s=>s.date>=ws).length,pct=Math.min(100,Math.round(n/target*100));
-  const cells=DAYS.map((d,i)=>{const ds=VB.addDays(ws,i),ev=events().find(e=>e.date===ds),dow=(i+1)%7,isT=ds===today,did=done.has(ds),planned=plan.has(dow);
+  const cells=DAYS.map((d,i)=>{const ds=VB.addDays(ws,i),ev=VB.cal?VB.cal.gameOn(ds):events().find(e=>e.date===ds),dow=(i+1)%7,isT=ds===today,did=done.has(ds),planned=plan.has(dow);
     const st=ev?"game":did?"done":ds<today?(planned?"miss":"rest"):planned?"plan":"rest";
     return `<li class="wd ${st}${isT?" today":""}" title="${d}: ${ev?esc(ev.name||"Game"):st==="done"?"trained":st==="plan"?"planned":st==="miss"?"missed":"rest"}"><span>${d[0]}</span><i>${ev?ic("whistle"):did?ic("fit"):""}</i></li>`;}).join("");
   el.innerHTML=`<div class="wg-top"><div class="ring wg-ring" style="--p:${pct}"><b>${n}<small>/${target}</small></b></div>
@@ -49,15 +49,15 @@ const GAMEDAY=[
   ["Speed and jumps","3 min: 3 quick approaches at 70%, then 3 at full speed. 2 pogo sets. Stop well before fatigue.",180],
   ["Ball touches","5 min: partner passing, then setting, then easy arm swings building to full hits.",300],
   ["Last word","Pick one focus for the first set (for example: early approach). Breathe out slowly before the first serve.",0]];
-function gameDay(){const host=$("#todayMain");if(!host)return;let el=$("#gameDay");const ev=events().find(e=>e.date===VB.today());
+function gameDay(){const host=$("#todayMain");if(!host)return;let el=$("#gameDay");const ev=VB.cal?VB.cal.gameOn(VB.today()):events().find(e=>e.date===VB.today());
   if(!ev){if(el)el.remove();document.body.classList.remove("gameday");return;}
   document.body.classList.add("gameday");
   if(!el){el=document.createElement("div");el.id="gameDay";el.className="card gameday-card";host.prepend(el);}
-  const kind={match:"Match",tournament:"Tournament",tryout:"Tryout"}[ev.kind]||"Match",st=(S().ui||{}).gd||{};const doneN=GAMEDAY.filter((_,i)=>st[ev.date+i]).length;
-  el.innerHTML=`<div class="kicker">${ic("whistle")} Game day</div><h3>${esc(kind)}${ev.name?" vs "+esc(ev.name):""} today</h3>
+  const kind=(VB.cal?VB.cal.KINDS:{})[ev.kind]||"Match",st=(S().ui||{}).gd||{},day=VB.today();const doneN=GAMEDAY.filter((_,i)=>st[day+i]).length;
+  el.innerHTML=`<div class="kicker">${ic("whistle")} Game day</div><h3>${esc(kind)}${ev.name?": "+esc(ev.name):""} today${ev.time?" · "+esc(ev.time):""}</h3>${ev.place?`<p class="small">${esc(ev.place)}</p>`:""}
     <p class="small muted">Your session is cut to activation and arm care. Use this warm-up before you play: about 20 minutes, ${doneN} of ${GAMEDAY.length} done.</p>
-    <ol class="gd-list">${GAMEDAY.map(([t,d,sec],i)=>`<li class="${st[ev.date+i]?"ok":""}"><button type="button" data-gd="${i}" aria-pressed="${!!st[ev.date+i]}" aria-label="Mark ${esc(t)} done">${st[ev.date+i]?ic("fit"):i+1}</button><div><b>${esc(t)}</b>${sec?`<span class="small muted"> · ${Math.round(sec/60)} min</span>`:""}<p class="small">${esc(d)}</p></div></li>`).join("")}</ol>`;}
-document.addEventListener("click",e=>{const b=e.target.closest("[data-gd]");if(!b)return;const ev=events().find(x=>x.date===VB.today());if(!ev)return;const st=S();st.ui=st.ui||{};st.ui.gd=st.ui.gd||{};const k=ev.date+b.dataset.gd;st.ui.gd[k]=!st.ui.gd[k];VB.save();gameDay();});
+    <ol class="gd-list">${GAMEDAY.map(([t,d,sec],i)=>`<li class="${st[day+i]?"ok":""}"><button type="button" data-gd="${i}" aria-pressed="${!!st[day+i]}" aria-label="Mark ${esc(t)} done">${st[day+i]?ic("fit"):i+1}</button><div><b>${esc(t)}</b>${sec?`<span class="small muted"> · ${Math.round(sec/60)} min</span>`:""}<p class="small">${esc(d)}</p></div></li>`).join("")}</ol>`;}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-gd]");if(!b)return;const ev=VB.cal?VB.cal.gameOn(VB.today()):events().find(x=>x.date===VB.today());if(!ev)return;const st=S();st.ui=st.ui||{};st.ui.gd=st.ui.gd||{};const k=VB.today()+b.dataset.gd;st.ui.gd[k]=!st.ui.gd[k];VB.save();gameDay();});
 
 /* ---------- B7: share the player card as an image ---------- */
 function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}

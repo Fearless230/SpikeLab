@@ -43,8 +43,8 @@ VB.court=(function(){
     if(pose==="swing")return p.x<-7.5||p.x>7.5?"serve":"spike";
     return {block:"block",platform:"dig",set:"set",ready:"ready"}[pose]||"ready";}
   function place(pl,p,name,s){const clip=VB.Athlete.CLIPS[name],tc=clip.contact!=null?clip.contact:0;let yaw;
-    if(p.opp)yaw=Math.PI;else if(name==="set")yaw=(p.face!=null?p.face:Math.PI/2)-Math.PI/2;
-    else if(p.me&&s.steps&&s.steps.length>1&&/^(spike|pipe|slide|sprawl|jumpfloat|serve)$/.test(name)){const st=s.steps.slice().sort((a,b)=>a.n-b.n),a=st[0],A=v=>Math.atan2(-v[1],v[0]),P0=VB.Athlete.sample(clip,0,pl.a.lefty),P1=VB.Athlete.sample(clip,tc,pl.a.lefty);
+    if(p.opp)yaw=Math.PI;else if(name==="set"||name==="dump")yaw=(p.face!=null?p.face:Math.PI/2)-Math.PI/2;
+    else if(p.me&&s.steps&&s.steps.length>1&&/^(spike|pipe|slide|sprawl|jumpfloat|serve|quick|shoot|tip|roll|cut|sidedive)$/.test(name)){const st=s.steps.slice().sort((a,b)=>a.n-b.n),a=st[0],A=v=>Math.atan2(-v[1],v[0]),P0=VB.Athlete.sample(clip,0,pl.a.lefty),P1=VB.Athlete.sample(clip,tc,pl.a.lefty);
       yaw=A([p.x-a.x,p.z-a.z])-A([P1.x-P0.x,P1.z-P0.z]);}
     else yaw=p.face||0;
     const P=VB.Athlete.sample(clip,tc,pl.a.lefty),k=pl.root.scl[0]||1,c=Math.cos(yaw),sn=Math.sin(yaw),ox=(c*P.x+sn*P.z)*k,oz=(-sn*P.x+c*P.z)*k;
@@ -77,7 +77,7 @@ VB.court=(function(){
     people.forEach(pp=>{pp.hw=handW(pp);});
     paths.forEach(p=>{const near=v=>{let best=null,bd=2.2;people.forEach(pp=>{if(!pp.hw)return;const d=Math.hypot(v[0]-pp.home.x,v[2]-pp.home.z);if(d<bd){bd=d;best=pp;}});return best;};
       // a ball that ends low next to a digger goes into their platform instead of the floor beside them
-      const qb=near(p.b);if(qb&&(p.b[1]>.3||/^(dig|sprawl)$/.test(qb.clip))){p.b=qb.hw.slice();qb.pinned=true;p.bPin=qb;}
+      const qb=near(p.b);if(qb&&(p.b[1]>.3||/^(dig|sprawl|collapse|sidedive|tomahawk)$/.test(qb.clip))){p.b=qb.hw.slice();qb.pinned=true;p.bPin=qb;}
       const q2=near(p.a);if(q2){p.a=q2.hw.slice();q2.pinned=true;p.aPin=q2;}});
     paths.forEach(p=>{const pts=[];for(let i=0;i<=40;i++)pts.push(at(p,i/40));
       group.add(new Node(G.tube(pts,p.alt?.018:.03,8),G.mat({color:p.alt?"#b9a8ff":"#ffffff",unlit:true,transparent:true,opacity:p.alt?.45:.85,depthWrite:false})));

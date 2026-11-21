@@ -135,10 +135,44 @@ new MutationObserver(()=>guidedButton()).observe(document.body,{childList:true,s
 /* ================= season calendar, tapering, soreness, jump load, milestones ================= */
 const season=()=>{const s=S();if(!s.season)s.season={events:[]};return s.season;};
 const sore=()=>{const s=S();if(!s.soreness)s.soreness={};return s.soreness;};
-const KINDS={match:"Match",tournament:"Tournament",tryout:"Tryout"};
-function upcoming(){const t=VB.today();return season().events.filter(e=>e.date>=t).sort((a,b)=>a.date<b.date?-1:1);}
-function daysTo(){const u=upcoming()[0];return u?{d:VB.daysBetween(VB.today(),u.date),e:u}:null;}
-function daysSince(){const t=VB.today(),past=season().events.filter(e=>e.date<t).sort((a,b)=>a.date<b.date?1:-1)[0];return past?VB.daysBetween(past.date,t):null;}
+const KINDS={match:"Match",tournament:"Tournament",tryout:"Tryout",practice:"Team practice",other:"Other"};
+const TAPER=new Set(["match","tournament","tryout"]);   // only these change the training plan around them
+const endOf=e=>e.end&&e.end>e.date?e.end:e.date;        // tournaments can run over several days
+const byWhen=(a,b)=>(a.date+(a.time||""))<(b.date+(b.time||""))?-1:(a.date+(a.time||""))>(b.date+(b.time||""))?1:0;
+const games=()=>season().events.filter(e=>TAPER.has(e.kind||"match"));
+const gameOn=ds=>games().filter(e=>e.date<=ds&&endOf(e)>=ds).sort(byWhen)[0]||null;
+function upcoming(){const t=VB.today();return season().events.filter(e=>endOf(e)>=t).sort(byWhen);}
+function daysTo(){const t=VB.today(),g=games().filter(e=>endOf(e)>=t).sort(byWhen)[0];return g?{d:Math.max(0,VB.daysBetween(t,g.date)),e:g}:null;}
+function daysSince(){const t=VB.today(),past=games().map(endOf).filter(d=>d<t).sort().pop();return past?VB.daysBetween(past,t):null;}
+/* training days: the days picked in Training reminders, or a sensible spread of the profile's days per week */
+const SPREAD={1:[3],2:[2,4],3:[1,3,5],4:[1,2,4,5],5:[1,2,3,5,6],6:[1,2,3,4,5,6],7:[0,1,2,3,4,5,6]};
+function trainDays(){const r=S().reminder;if(r&&(r.custom||r.on||(r.days&&r.days.join()!=="1,3,5")))return r.days.slice();const n=clampN((S().profile||{}).days||3,1,7);return SPREAD[n];}
+const clampN=(v,a,b)=>Math.max(a,Math.min(b,Math.round(v)));
+/* what a day holds for the plan: game, light day before, recovery day after, training day or rest */
+function planFor(ds){const g=gameOn(ds);if(g)return {k:"game",label:(KINDS[g.kind]||"Match")+" day",note:"Activation and arm care only before you play.",e:g};
+  const nx=games().filter(e=>e.date>ds).sort(byWhen)[0],dn=nx?VB.daysBetween(ds,nx.date):null,pe=games().map(endOf).filter(d=>d<ds).sort().pop(),dp=pe?VB.daysBetween(pe,ds):null;
+  const dow=new Date(ds+"T12:00:00").getDay(),planned=trainDays().includes(dow),pr=season().events.find(e=>e.kind==="practice"&&e.date<=ds&&endOf(e)>=ds);
+  if(dn===1)return {k:"light",label:"Light",note:"Game tomorrow: short and sharp, no heavy lifting."};
+  if(dp===1)return {k:"recovery",label:"Recovery",note:"The day after a game: mobility, arm care and light skills."};
+  if(pr)return {k:"practice",label:"Team practice",note:"Counts as a training day.",e:pr};
+  if(planned)return {k:"train",label:"Training",note:dn===2?"Game in two days: strength volume trimmed a little.":"Full session."};
+  return {k:"rest",label:"Rest",note:"Rest day. A walk or mobility is fine."};}
+/* calendar files (.ics): escaped text, folded lines, local times */
+const icsEsc=x=>String(x==null?"":x).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
+const icsFold=l=>{let out="",s=l;while(s.length>73){out+=s.slice(0,73)+"\r\n ";s=s.slice(73);}return out+s;};
+const icsDT=(ds,tm)=>ds.replace(/-/g,"")+(tm?"T"+tm.replace(":","")+"00":"");
+const icsStamp=()=>{const n=new Date(),p=x=>String(x).padStart(2,"0");return n.getUTCFullYear()+p(n.getUTCMonth()+1)+p(n.getUTCDate())+"T"+p(n.getUTCHours())+p(n.getUTCMinutes())+p(n.getUTCSeconds())+"Z";};
+function icsEvent(e){const kind=KINDS[e.kind]||"Match",L=["BEGIN:VEVENT","UID:"+e.id+"@volleyball-training-journey","DTSTAMP:"+icsStamp()];
+  if(e.time){const [h,m]=e.time.split(":").map(Number),mins=h*60+m+(e.dur||120),dd=Math.floor(mins/1440),et=String(Math.floor(mins%1440/60)).padStart(2,"0")+":"+String(mins%60).padStart(2,"0");
+    L.push("DTSTART:"+icsDT(e.date,e.time),"DTEND:"+icsDT(VB.addDays(endOf(e),dd),et));}
+  else L.push("DTSTART;VALUE=DATE:"+icsDT(e.date),"DTEND;VALUE=DATE:"+icsDT(VB.addDays(endOf(e),1)));
+  L.push("SUMMARY:"+icsEsc(kind+(e.name?": "+e.name:"")));if(e.place)L.push("LOCATION:"+icsEsc(e.place));
+  L.push("DESCRIPTION:"+icsEsc((e.note?e.note+"\n":"")+(TAPER.has(e.kind||"match")?"The day before: sleep, hydrate, light session only.":"")));
+  if(TAPER.has(e.kind||"match"))L.push("BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc(kind+" tomorrow"),e.time?"TRIGGER:-P1D":"TRIGGER:-PT6H","END:VALARM");
+  L.push("END:VEVENT");return L;}
+function icsDoc(lines){return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Volleyball Training Journey//EN","CALSCALE:GREGORIAN",...lines,"END:VCALENDAR"].map(icsFold).join("\r\n")+"\r\n";}
+VB.cal={KINDS,TAPER,endOf,byWhen,events:()=>season().events,games,gameOn,upcoming,daysTo,daysSince,trainDays,planFor,icsEvent,icsDoc,icsEsc,
+  save(){VB.invalidatePlan();VB.save();},download:(n,t)=>download(n,t,"text/calendar")};
 VB.v3.inSeason=()=>{const n=daysTo();return !!(n&&n.d<=21);};
 const REGIONS=[["shoulder","Shoulder"],["upperback","Upper back"],["lowerback","Lower back"],["hip","Hips"],["quad","Front of thigh"],["ham","Back of thigh"],["knee","Knee"],["achilles","Calf or Achilles"],["ankle","Ankle"],["wrist","Wrist or fingers"]];
 const LEVELS=["None","A little","Sore","Painful"];
@@ -179,10 +213,10 @@ function jumpWeeks(){const m={};S().sessions.forEach(s=>{if(s.jumps==null)return
 function renderJumps(){const c=$("#jumpCard");if(!c)return;const m=jumpWeeks(),t=VB.today();let wk=VB.weekStart(t);const rows=[];for(let i=7;i>=0;i--){const k=VB.addDays(wk,-7*i);rows.push([k,m[k]||0]);}
   let a=0,c28=0;S().sessions.forEach(s=>{if(s.jumps==null)return;const d=VB.daysBetween(s.date,t);if(d>=0&&d<7)a+=s.jumps;if(d>=0&&d<28)c28+=s.jumps;});const firstJ=S().sessions.filter(s=>s.jumps!=null).reduce((m,s)=>s.date<m?s.date:m,t),hist=VB.daysBetween(firstJ,t)>=21,ratio=c28&&hist?a/(c28/4):null,max=Math.max(1,...rows.map(r=>r[1]));
   c.innerHTML=`<div class="kicker">Jump load</div><h3>${a}<small> jumps in 7 days</small></h3>
-   <div class="jbars">${rows.map(([k,v])=>`<div><i style="height:${Math.round(v/max*100)}%"></i><span>${VB.shortDate(k).split(" ")[1]||""}</span></div>`).join("")}</div>
+   <div class="jbars">${rows.map(([k,v])=>`<div><i style="height:${Math.round(v/max*100)}%"></i><span title="Week of ${esc(VB.shortDate(k))}">${+k.slice(8)}</span></div>`).join("")}</div>
    <p class="small ${ratio>1.3?"warn":"muted"}">${c28&&!hist?"Keep logging jumps. After three weeks the plan compares each week with your average and warns you about sudden jumps in volume.":!c28?"Count your jumps when you finish a session and they show up here. Too many jumps too soon is the main cause of jumper's knee.":ratio>1.3?`This week is ${Math.round(ratio*100)}% of your 4-week average. Jump volume rising faster than 30% a week raises the risk of knee and Achilles pain, so the plan will ease off.`:"Steady. Keep weekly jumps within about 30% of your recent average."}</p>`;}
 /* season calendar */
-function renderSeason(){const c=$("#seasonCard");if(!c)return;const up=upcoming();
+function renderSeason(){if(VB.calUI){VB.calUI.render();return;}const c=$("#seasonCard");if(!c)return;const up=upcoming();
   c.innerHTML=`<div class="kicker">Season calendar</div><p class="small muted">Add your games. The plan goes lighter the day before, keeps match day to activation, and makes the day after a recovery day.</p>
    <div class="evlist">${up.length?up.slice(0,6).map(e=>`<div class="ev"><b>${VB.shortDate(e.date)}</b><span>${esc(KINDS[e.kind]||"Match")}${e.name?" · "+esc(e.name):""}</span><button type="button" class="btn sm" data-evdel="${e.id}" aria-label="Remove">✕</button></div>`).join(""):`<p class="small">No games yet.</p>`}</div>
    <form class="grid evform" id="evForm" novalidate><label class="f">Date<input type="date" id="ev-date" required min="${VB.today()}"></label><label class="f">Type<select id="ev-kind"><option value="match">Match</option><option value="tournament">Tournament</option><option value="tryout">Tryout</option></select></label>
@@ -191,10 +225,7 @@ document.addEventListener("submit",e=>{if(e.target.id!=="evForm")return;e.preven
   season().events.push({id:VB.uid(),date:d,kind:$("#ev-kind").value,name:$("#ev-name").value.trim()});VB.invalidatePlan();VB.save();renderSeason();toast("Added. Your sessions around it are adjusted.");});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-evdel],#evIcs");if(!b)return;
   if(b.dataset.evdel){season().events=season().events.filter(x=>x.id!==b.dataset.evdel);VB.invalidatePlan();VB.save();renderSeason();return;}
-  const pad=n=>String(n).padStart(2,"0"),d=s=>s.replace(/-/g,""),now=new Date(),stamp=now.getUTCFullYear()+pad(now.getUTCMonth()+1)+pad(now.getUTCDate())+"T"+pad(now.getUTCHours())+pad(now.getUTCMinutes())+"00Z";
-  const ev=upcoming().map(x=>["BEGIN:VEVENT","UID:"+x.id+"@volleyball-training-journey","DTSTAMP:"+stamp,"DTSTART;VALUE=DATE:"+d(x.date),"DTEND;VALUE=DATE:"+d(VB.addDays(x.date,1)),"SUMMARY:"+(KINDS[x.kind]||"Match")+(x.name?": "+x.name.replace(/[,;\\]/g," "):""),
-    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Game tomorrow: sleep, hydrate, light session only","TRIGGER:-PT6H","END:VALARM","END:VEVENT"].join("\r\n")).join("\r\n");
-  download("volleyball-season.ics",["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Volleyball Training Journey//EN",ev,"END:VCALENDAR"].join("\r\n"),"text/calendar");});
+  download("volleyball-season.ics",icsDoc(upcoming().flatMap(icsEvent)),"text/calendar");});
 /* milestones */
 const BADGES=[["s1","First session","Logged your first session",s=>s.n>=1],["s10","Ten down","10 sessions",s=>s.n>=10],["s25","Regular","25 sessions",s=>s.n>=25],["s50","Committed","50 sessions",s=>s.n>=50],["s100","Century","100 sessions",s=>s.n>=100],
   ["w2","On a roll","2-week streak",s=>s.streak>=2],["w4","Month strong","4-week streak",s=>s.streak>=4],["w8","Habit","8-week streak",s=>s.streak>=8],["w12","Season ready","12-week streak",s=>s.streak>=12],
@@ -380,16 +411,18 @@ const rem=()=>{const s=S();if(!s.reminder)s.reminder={days:[1,3,5],time:"17:00",
 function renderRem(){const host=$("#remDays");if(!host)return;const r=rem();
   host.innerHTML=DAYS.map(([v,l])=>`<button type="button" class="sbtn" data-day="${v}" aria-pressed="${r.days.includes(+v)}">${l}</button>`).join("");$("#remTime").value=r.time;
   const can="Notification" in window&&"serviceWorker" in navigator&&/^https?:$/.test(location.protocol);$("#remPush").hidden=!can;$("#remPush").textContent=r.on?"Turn off notifications":"Turn on notifications";}
-function icsReminders(){const r=rem(),[hh,mm]=r.time.split(":").map(Number),BY={0:"SU",1:"MO",2:"TU",3:"WE",4:"TH",5:"FR",6:"SA"},d=new Date();d.setHours(hh,mm,0,0);
-  const pad=n=>String(n).padStart(2,"0"),dt=x=>x.getFullYear()+pad(x.getMonth()+1)+pad(x.getDate())+"T"+pad(x.getHours())+pad(x.getMinutes())+"00";
-  const end=new Date(d.getTime()+60*60000),uidv="vbj-train-"+Date.now()+"@volleyball-training-journey";
-  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Volleyball Training Journey//EN","CALSCALE:GREGORIAN","BEGIN:VEVENT","UID:"+uidv,"DTSTAMP:"+dt(new Date()),"DTSTART:"+dt(d),"DTEND:"+dt(end),
-    "RRULE:FREQ=WEEKLY;BYDAY="+r.days.map(x=>BY[x]).join(","),"SUMMARY:Volleyball training","DESCRIPTION:Open Volleyball Training Journey for today's session: "+location.href.split("#")[0]+"#today",
-    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Time to train","TRIGGER:-PT15M","END:VALARM","END:VEVENT","END:VCALENDAR"].join("\r\n");}
+function icsReminders(){const r=rem(),BY={0:"SU",1:"MO",2:"TU",3:"WE",4:"TH",5:"FR",6:"SA"},t=VB.today();
+  // DTSTART is itself an occurrence, so it must fall on one of the chosen days or the calendar shows an extra event
+  let first=t;for(let i=0;i<7;i++){const ds=VB.addDays(t,i);if(r.days.includes(new Date(ds+"T12:00:00").getDay())){first=ds;break;}}
+  const time=/^\d\d:\d\d$/.test(r.time)?r.time:"17:00",[h,m]=time.split(":").map(Number),e=String(Math.min(23,h+1)).padStart(2,"0")+":"+String(m).padStart(2,"0");
+  return icsDoc(["BEGIN:VEVENT","UID:vbj-train-"+r.days.join("")+"@volleyball-training-journey","DTSTAMP:"+icsStamp(),"DTSTART:"+icsDT(first,time),"DTEND:"+icsDT(first,e),
+    "RRULE:FREQ=WEEKLY;WKST=MO;BYDAY="+r.days.map(x=>BY[x]).join(","),"SUMMARY:Volleyball training","DESCRIPTION:"+icsEsc("Open Volleyball Training Journey for today's session: "+location.href.split("#")[0]+"#today"),
+    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Time to train","TRIGGER:-PT15M","END:VALARM","END:VEVENT"]);}
+VB.cal.icsReminders=icsReminders;
 async function savePushSettings(){if(!("caches" in window))return;const r=rem(),[h]=r.time.split(":").map(Number),c=await caches.open("vbj-settings");
   const done=S().sessions.some(x=>x.date===VB.today()&&!x.ex);await c.put("reminder",new Response(JSON.stringify({on:r.on,days:r.days,hour:h,lastDone:done?VB.today():null,text:"Your session is ready. About "+((S().today&&S().today.plan&&S().today.plan.est)||45)+" minutes."})));}
 document.addEventListener("click",async e=>{const b=e.target.closest("button");if(!b)return;
-  if(b.dataset.day!=null&&b.closest("#remDays")){const r=rem(),d=+b.dataset.day;r.days=r.days.includes(d)?r.days.filter(x=>x!==d):[...r.days,d].sort();VB.save();renderRem();savePushSettings();}
+  if(b.dataset.day!=null&&b.closest("#remDays")){const r=rem(),d=+b.dataset.day;r.days=r.days.includes(d)?r.days.filter(x=>x!==d):[...r.days,d].sort();r.custom=true;VB.save();VB.invalidatePlan&&VB.invalidatePlan();renderRem();savePushSettings();}
   if(b.id==="remIcs"){if(!rem().days.length){$("#remNote").textContent="Pick at least one day first.";return;}download("volleyball-training.ics",icsReminders(),"text/calendar");$("#remNote").textContent="Open the downloaded file to add a weekly training event with a reminder 15 minutes before.";}
   if(b.id==="remPush"){const r=rem();if(r.on){r.on=false;VB.save();savePushSettings();renderRem();$("#remNote").textContent="Notifications are off.";return;}
     const perm=await Notification.requestPermission();if(perm!=="granted"){$("#remNote").textContent="Notifications are blocked in your browser settings. Use Add to my calendar instead.";return;}
@@ -397,7 +430,7 @@ document.addEventListener("click",async e=>{const b=e.target.closest("button");i
     if(reg.periodicSync){try{await reg.periodicSync.register("vbj-reminder",{minInterval:6*3600*1000});$("#remNote").textContent="Notifications are on. Your phone checks a few times a day and reminds you on training days.";}
       catch(err){$("#remNote").textContent="Install the app to your home screen first (browser menu, then Install or Add to Home screen), then turn this on again. Or use Add to my calendar.";r.on=false;VB.save();renderRem();}}
     else{$("#remNote").textContent="Your browser can't schedule reminders while the app is closed. Use Add to my calendar for reliable reminders.";r.on=false;VB.save();renderRem();}}});
-document.addEventListener("change",e=>{if(e.target.id==="remTime"){rem().time=e.target.value||"17:00";VB.save();savePushSettings();}});
+document.addEventListener("change",e=>{if(e.target.id==="remTime"){rem().time=e.target.value||"17:00";rem().custom=true;VB.save();savePushSettings();}});
 VB.v3.onSave(()=>{savePushSettings();});VB.v3.onRoute(v=>{if(v==="profile")renderRem();});setTimeout(renderRem,0);
 /* install prompt: offered once the person has finished a session, never on first visit */
 let installEvt=null;window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;});

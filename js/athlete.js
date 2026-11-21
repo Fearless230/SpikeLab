@@ -88,8 +88,33 @@ const BALL={
     const u=(t-tc)/1.1,E=[-1.4,2.4,1.2];if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+4*1.6*u*(1-u),lerp(C[2],E[2],u)];return null;},
   jumpfloat:(t,h)=>{const tc=h.tc,C=h.contact,tr=.72,L=h.left(tr);if(t<tr)return h.left(t);if(t<tc){const u=(t-tr)/(tc-tr);return [lerp(L[0],C[0],u),lerp(L[1],C[1],u)+4*1.15*u*(1-u),lerp(L[2],C[2],u)];}
     const u=(t-tc)/1.2,E=[7.4,.11,-2.6];if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+4*.9*u*(1-u),lerp(C[2],E[2],u)+.18*Math.sin(u*12)];return null;},
+  // attack variations: same set as the spike (or a faster one) and a different ball after contact
+  quick:(t,h)=>{const tc=h.tc+.01,setT=1.16,S=[-.5,2.5,1.0],C=h.contact;
+    if(t<setT){const u=t/setT,A=[-5.2,.8,1.4];return [lerp(A[0],S[0],u),lerp(A[1],S[1],u)+4*2.0*u*(1-u),lerp(A[2],S[2],u)];}
+    if(t<tc){const u=(t-setT)/(tc-setT);return [lerp(S[0],C[0],u),lerp(S[1],C[1],u)+4*.25*u*(1-u),lerp(S[2],C[2],u)];}
+    const u=(t-tc)/.28,E=[3.6,.11,-.9];if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+.15*u*(1-u),lerp(C[2],E[2],u)];
+    const v=t-tc-.28;if(v<.8)return [E[0]+v*2.4,.11+Math.abs(Math.sin(v*5))*Math.exp(-v*2.5)*1.1,E[2]-v*.5];return null;},
+  shoot:(t,h)=>{const tc=h.tc+.02,setT=1.08,S=[-.55,2.62,3.6],C=h.contact;
+    if(t<setT){const u=t/setT,A=[-5.2,.8,1.4];return [lerp(A[0],S[0],u),lerp(A[1],S[1],u)+4*2.2*u*(1-u),lerp(A[2],S[2],u)];}
+    if(t<tc){const u=(t-setT)/(tc-setT);return [lerp(S[0],C[0],u),lerp(S[1],C[1],u)+4*.7*u*(1-u),lerp(S[2],C[2],u)];}
+    const u=(t-tc)/.34,E=[5.8,.11,-1.6];if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+.2*u*(1-u),lerp(C[2],E[2],u)];
+    const v=t-tc-.34;if(v<.8)return [E[0]+v*2.6,.11+Math.abs(Math.sin(v*5))*Math.exp(-v*2.5)*1.2,E[2]-v*.6];return null;},
+  dump:(t,h)=>{const tc=h.tc,C=h.contact,A=[-6,1.0,1.2];if(t<.2)return null;if(t<tc){const u=(t-.2)/(tc-.2);return [lerp(A[0],C[0],u),lerp(A[1],C[1],u)+4*2.6*u*(1-u),lerp(A[2],C[2],u)];}
+    const u=(t-tc)/.62,E=[1.5,.11,-.7];if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+4*.35*u*(1-u),lerp(C[2],E[2],u)];
+    const v=t-tc-.62;if(v<.7)return [E[0]+v*1.2,.11+Math.abs(Math.sin(v*6))*Math.exp(-v*3)*.6,E[2]];return null;},
+  collapse:(t,h)=>{const tc=h.tc,C=h.contact,A=[.4,2.4,.1];if(t<tc-.5)return null;if(t<tc){const u=(t-(tc-.5))/.5;return [lerp(A[0],C[0],u),lerp(A[1],C[1],u)+.2*u*(1-u),lerp(A[2],C[2],u)];}
+    const u=(t-tc)/1.3,E=[-1.0,2.6,.6];if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+4*3.2*u*(1-u),lerp(C[2],E[2],u)];return null;},
+  sidedive:(t,h)=>{const tc=h.tc,C=h.contact;if(t<.85)return null;if(t<tc){const u=(t-.85)/(tc-.85),A=[.3,3.0,.9];return [lerp(A[0],C[0],u),lerp(A[1],C[1],u)+.5*u*(1-u),lerp(A[2],C[2],u)];}
+    const u=(t-tc)/1.1,E=[-1.6,2.3,.6];if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+4*1.6*u*(1-u),lerp(C[2],E[2],u)];return null;},
+  tomahawk:(t,h)=>{const tc=h.tc,C=h.contact,A=[.4,3.4,-.9];if(t<tc-.46)return null;if(t<tc){const u=(t-(tc-.46))/.46;return [lerp(A[0],C[0],u),lerp(A[1],C[1],u),lerp(A[2],C[2],u)];}
+    const u=(t-tc)/1.2,E=[-1.2,2.8,.6];if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+4*2.0*u*(1-u),lerp(C[2],E[2],u)];return null;},
   ready:()=>null};
-const HANDK={spike:"R",pipe:"R",slide:"R",serve:"R",float:"R",jumpfloat:"R",block:"both",set:"both",dig:"platform",sprawl:"pancake"};
+// tip, roll and cut share the spike's set; only the ball after contact changes
+const afterSpike=(E,dur,arc,bounce)=>(t,h)=>{const tc=h.tc+.02;if(t<tc)return BALL.spike(t,h);const C=h.contact,u=(t-tc)/dur;
+  if(u<=1)return [lerp(C[0],E[0],u),lerp(C[1],E[1],u)+4*arc*u*(1-u),lerp(C[2],E[2],u)];const v=t-tc-dur;if(v<.8)return [E[0]+v*bounce[0],.11+Math.abs(Math.sin(v*6))*Math.exp(-v*3)*bounce[1],E[2]+v*bounce[2]];return null;};
+BALL.tip=afterSpike([2.0,.11,.3],.72,.45,[.8,.4,.1]);BALL.roll=afterSpike([5.2,.11,.9],.95,.95,[1.6,.7,.2]);BALL.cut=afterSpike([2.6,.11,3.0],.34,.08,[1.2,.8,1.4]);
+const HANDK={spike:"R",pipe:"R",slide:"R",serve:"R",float:"R",jumpfloat:"R",block:"both",set:"both",dig:"platform",sprawl:"pancake",
+  quick:"R",shoot:"R",tip:"R",roll:"R",cut:"R",dump:"L",collapse:"platform",sidedive:"pancake",tomahawk:"both"};
 for(const k in CLIPS){CLIPS[k].ball=BALL[k]||(()=>null);CLIPS[k].hand=HANDK[k]||CLIPS[k].hand;}
 
 /* pose at time t: local quaternions (Float32Array NB*4) + root position. Lefties: mirror across the body's midplane. */
@@ -117,7 +142,7 @@ function fk(P,heads,W){W=W||{q:new Float32Array(NB*4),p:new Float32Array(NB*3)};
   return W;}
 /* forearm platform (dig, sprawl): both arms straight and together, hands clasped. A two-bone IK layer brings the hands
    to a shared point in front of the body, keeping each elbow's bend plane; it fades in and out around contact. */
-const PLAT={dig:[.95,1.1,1.55,1.75],sprawl:[.9,1.05,1.5,1.7]};
+const PLAT={dig:[.95,1.1,1.55,1.75],sprawl:[.9,1.05,1.5,1.7],collapse:[1.0,1.15,1.65,1.85]};
 function platW(w,t){return sm((t-w[0])/(w[1]-w[0]))*(1-sm((t-w[2])/(w[3]-w[2])));}
 const qfrom=(a,b)=>{const la=Math.hypot(a[0],a[1],a[2]),lb=Math.hypot(b[0],b[1],b[2]);const x=a.map(v=>v/la),y=b.map(v=>v/lb);
   const c=[x[1]*y[2]-x[2]*y[1],x[2]*y[0]-x[0]*y[2],x[0]*y[1]-x[1]*y[0]],d=x[0]*y[0]+x[1]*y[1]+x[2]*y[2];const q=[1+d,c[0],c[1],c[2]];const l=Math.hypot(...q)||1;return q.map(v=>v/l);};
@@ -493,5 +518,5 @@ VB.Athlete={KXZ,keepOffNet,blockerArms,toWorld:toWorldP,toLocal:toLocalP,build,s
   ballGeo(){return _bg||(_bg=G.sphere(.105,28,20));},
   ballMat(){if(!_bt)_bt=G.canvasTex(256,128,(g,w,h)=>{g.fillStyle="#f6f3ea";g.fillRect(0,0,w,h);[["#f5c518",0],["#1f4fae",h/3]].forEach(([c,y0])=>{g.fillStyle=c;g.beginPath();for(let x=0;x<=w;x+=4)g.lineTo(x,y0+h/6+Math.sin(x/w*Math.PI*4)*h/7);for(let x=w;x>=0;x-=4)g.lineTo(x,y0+h/3+Math.sin(x/w*Math.PI*4)*h/7);g.fill();});g.strokeStyle="rgba(0,0,0,.28)";g.lineWidth=2;for(let i=0;i<6;i++){g.beginPath();for(let x=0;x<=w;x+=4)g.lineTo(x,i*h/6+h/12+Math.sin(x/w*Math.PI*4)*h/7);g.stroke();}});
     return G.mat({map:_bt,rough:.45});},
-  forPos:{outside:"spike",opposite:"serve",middle:"block",setter:"set",libero:"dig",any:"spike"},byTech:{float:"float",jump_float:"jumpfloat",jumpserve:"serve",spike:"spike",tip_roll:"spike",slide:"slide",back_row_attack:"pipe",block:"block",swing_block:"block",dig:"dig",sprawl_pancake:"sprawl",jump_set:"set",set:"set",back_set:"set"}};
+  forPos:{outside:"spike",opposite:"serve",middle:"block",setter:"set",libero:"dig",any:"spike"},byTech:{float:"float",jump_float:"jumpfloat",jumpserve:"serve",spike:"spike",tip_roll:"tip",roll_shot:"roll",cut_shot:"cut",quick_attack:"quick",shoot_go:"shoot",tool_shot:"spike",line_cross:"spike",slide:"slide",back_row_attack:"pipe",bic_pipe:"pipe",setter_dump:"dump",block:"block",swing_block:"block",dig:"dig",sprawl_pancake:"sprawl",collapse_dig:"collapse",side_dive:"sidedive",overhead_pass:"tomahawk",overhead_dig:"tomahawk",jump_set:"set",set:"set",back_set:"set"}};
 })();

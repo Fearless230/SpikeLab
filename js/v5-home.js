@@ -92,8 +92,8 @@ VB.v5.challengeFor=challengeFor;
 /* ================= data for the board ================= */
 const vertTests=()=>(S().tests||[]).filter(t=>t.kind==="vert"&&!t.ex&&t.cm>=3&&t.cm<=130).sort((a,b)=>a.date<b.date?-1:1);
 function dayLoad(){const m={};(S().sessions||[]).forEach(s=>{if(s.ex)return;const l=(s.mins||0)*(s.rpe||5);m[s.date]=(m[s.date]||0)+l;});return m;}
-function nextEvent(){const t=VB.today();const ev=((S().season||{}).events||[]).filter(e=>e.date>=t).sort((a,b)=>a.date<b.date?-1:1)[0];return ev?{e:ev,d:VB.daysBetween(t,ev.date)}:null;}
-const KIND={match:"Match",tournament:"Tournament",tryout:"Tryout"};
+function nextEvent(){if(VB.cal)return VB.cal.daysTo();const t=VB.today();const ev=((S().season||{}).events||[]).filter(e=>e.date>=t).sort((a,b)=>a.date<b.date?-1:1)[0];return ev?{e:ev,d:VB.daysBetween(t,ev.date)}:null;}
+const KIND={match:"Match",tournament:"Tournament",tryout:"Tryout",practice:"Team practice",other:"Event"};
 const BLOCKCOL={"Prep":"#9d86ff","Fix":"#ffc145","Skills":"var(--gold)","Power":"#ff8a3d","Strength":"#45c8ff","Arm care and core":"#4fd394"};
 
 /* ---------- hero: chip row and HUD ---------- */
@@ -147,12 +147,24 @@ function board(){const v=$("#v-today");if(!v||!S().profile)return;let el=$("#v5b
   const tips=window.VB_TIPS||[],tip=tips.length?tips[hashStr("tip"+VB.today())%tips.length]:null;
   const tipc=tip?`<article class="v5card v5tip"><div class="kicker">${ic("star")} Coach's tip · ${esc(tip[0])}</div><p class="tipq">${esc(tip[1])}</p><a class="small" href="#tools/rules">Rules and glossary</a></article>`:"";
   el.innerHTML=`<div class="v5grid"><div class="g-ticket">${ticket}</div><div class="g-chal">${chal}</div><div class="g-qa">${qa}</div><div class="g-heat"><article class="v5card"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="kicker">Training map · last 12 weeks</div><a class="small" href="#progress">Full history</a></div>${heat}</article></div><div class="g-tip">${tipc}</div></div>`;}
-function heatmap(weeks,cls){const dl=dayLoad(),ws=VB.weekStart(VB.today()),start=VB.addDays(ws,-(weeks-1)*7),vals=Object.values(dl),mx=Math.max(1,...vals),ready_=S().ready||{},ch=S().challenges||{};
-  let cols="",total=0,act=0;for(let w=0;w<weeks;w++){let c="";for(let d=0;d<7;d++){const day=VB.addDays(start,w*7+d),l=dl[day]||0,fut=day>VB.today();if(l){act++;total+=l;}
-      const lv=l?Math.min(4,1+Math.floor(l/mx*3.999)):0;c+=`<i class="l${lv} ${fut?"fut":""} ${day===VB.today()?"now":""} ${ch[day]?"ch":""}" title="${esc(VB.shortDate(day))}${l?" · load "+l:""}${ch[day]?" · challenge done":""}${ready_[day]?" · readiness "+(ready_[day].score??""):""}"></i>`;}
-    cols+=`<div class="hc">${c}</div>`;}
-  return `<div class="${cls} heat"><div class="hd" aria-hidden="true"><span>M</span><span></span><span>W</span><span></span><span>F</span><span></span><span>S</span></div><div class="hg" role="img" aria-label="${act} active days in the last ${weeks} weeks">${cols}</div></div>
-   <div class="heatleg small muted"><span>${act} active days</span><span class="hl">Less <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i> More</span><span><i class="dotc"></i> challenge</span></div>`;}
+function heatmap(weeks,cls){const dl=dayLoad(),t=VB.today(),ws=VB.weekStart(t),start=VB.addDays(ws,-(weeks-1)*7),ready_=S().ready||{},ch=S().challenges||{},cal=VB.cal;
+  // shade against the busiest day in this window, so one old spike doesn't wash out recent weeks
+  let mx=1;for(let i=0;i<weeks*7;i++){const v=dl[VB.addDays(start,i)]||0;if(v>mx)mx=v;}
+  let cols="",heads="",total=0,act=0,prevM=null;
+  for(let w=0;w<weeks;w++){let c="",lab="";for(let d=0;d<7;d++){const day=VB.addDays(start,w*7+d),l=dl[day]||0,fut=day>t,g=cal?cal.gameOn(day):null;if(l&&!fut){act++;total+=l;}
+      const m=day.slice(0,7);if(m!==prevM&&(day.slice(8)==="01"||(w===0&&d===0&&+day.slice(8)<=20))){lab=new Date(day+"T12:00:00").toLocaleDateString(undefined,{month:"short"});prevM=m;}
+      const lv=l?Math.min(4,1+Math.floor(l/mx*3.999)):0,tip=`${VB.shortDate(day)}${g?" · "+((cal.KINDS[g.kind]||"Match")+(g.name?" "+g.name:"")):""}${l?" · load "+l:""}${ch[day]?" · challenge done":""}${ready_[day]?" · readiness "+(ready_[day].score??""):""}`;
+      c+=`<i class="l${lv} ${fut?"fut":""} ${day===t?"now":""} ${ch[day]?"ch":""} ${g?"gm":""}" data-hday="${day}" title="${esc(tip)}"></i>`;}
+    heads+=`<span>${esc(lab)}</span>`;cols+=`<div class="hc">${c}</div>`;}
+  return `<div class="${cls} heat"><div class="hd" aria-hidden="true"><span class="hm"></span><span>Mo</span><span></span><span>We</span><span></span><span>Fr</span><span></span><span>Su</span></div>
+    <div class="hgw"><div class="hmon" aria-hidden="true">${heads}</div><div class="hg" role="img" aria-label="${act} active days in the last ${weeks} weeks">${cols}</div></div></div>
+   <p class="heatinfo small" aria-live="polite">Tap a day to see it.</p>
+   <div class="heatleg small muted"><span>${act} active days</span><span class="hl">Less <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i> More</span><span><i class="dotc"></i> challenge</span><span><i class="gmk"></i> game</span></div>`;}
+document.addEventListener("click",e=>{const c=e.target.closest(".heat i[data-hday]");if(!c)return;const ds=c.dataset.hday,info=c.closest(".heat").parentElement.querySelector(".heatinfo");if(!info)return;
+  const ses=(S().sessions||[]).filter(s=>!s.ex&&s.date===ds),g=VB.cal?VB.cal.gameOn(ds):null,p=VB.cal&&ds>=VB.today()?VB.cal.planFor(ds):null;
+  const bits=[(g?(VB.cal.KINDS[g.kind]||"Match")+(g.name?": "+g.name:""):""),...ses.map(s=>`${s.type||"Session"} ${s.mins||0} min${s.rpe?", effort "+s.rpe:""}`),p&&!g?"Plan: "+p.label:"",!ses.length&&ds<VB.today()&&!g?"No session":""].filter(Boolean);
+  info.innerHTML=`<b>${esc(new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</b> · ${esc(bits.join(" · "))} <a href="#progress" data-calgo="${ds}">Open in calendar</a>`;
+  $$(".heat i.pick").forEach(x=>x.classList.remove("pick"));c.classList.add("pick");});
 VB.v5.heatmap=heatmap;
 
 /* ---------- entry point, called at the end of renderToday ---------- */

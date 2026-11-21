@@ -145,6 +145,6 @@ class Clip:
 
 def load_clips(rig):
     base = json.load(open(os.path.join(HERE, 'clips_base.json')))
-    import research
-    data = research.apply(copy.deepcopy(base))
+    import research, research_more
+    data = research_more.apply(research.apply(copy.deepcopy(base)))
     return {k: Clip(k, v, rig) for k, v in data.items()}

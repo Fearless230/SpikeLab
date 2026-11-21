@@ -405,8 +405,8 @@ window.VB_TECHS = [
    zones:[{x:6,z:2.5,w:2.6,d:2.6,label:"Cross"},{x:7.2,z:-3.8,w:2.6,d:1.2,label:"Line"}]}},
 
  /* ------------------------------------------------------------ TIP ROLL */
- {id:"tip_roll", name:"Tip and roll shot", kind:"Skill", level:"Intermediate", skill:"attack",
-  sum:"An off-speed attack placed into open court from a full approach, used when the hard swing is not on.",
+ {id:"tip_roll", name:"Tip (dink)", kind:"Skill", level:"Intermediate", skill:"attack",
+  sum:"An off-speed attack pushed with stiff fingertips over or beside the block into open court, from a full approach, when the hard swing is not on.",
   why:"Defenders set their feet for a driven ball, so a disguised soft shot lands in front of them or behind the block. It also saves a tight or low set and keeps a well-formed block from scoring.",
   phases:[
    {name:"Approach", points:[
@@ -421,21 +421,20 @@ window.VB_TECHS = [
     "Contact with the pads of stiff, spread fingers at full reach, wrist firm. It is a short push, not a carry.",
     "Direct the ball just over or beside the block to the floor inside the attack line.",
     "The ball must not come to rest in the hand or change direction during contact."]},
-   {name:"Roll shot", points:[
-    "Swing at reduced speed and contact below centre with the heel and palm of an open hand.",
-    "Roll the hand up and over the ball so topspin makes it clear the block and drop quickly.",
-    "Aim for the middle of the court behind the blockers or a deep corner the defence has left."]},
+   {name:"Targets", points:[
+    "Short, just behind the block, when the defence is deep.",
+    "To the middle of the court (zone 3 on their side) when the middle blocker has jumped with a quick.",
+    "Deep corner with a longer push when a defender has crept forward. For a harder off-speed ball use the roll shot."]},
    {name:"Landing", points:[
     "Land on two feet, balanced, and be ready to block or cover: soft shots are often dug.",
     "Mix it in sparingly. One tip in four or five swings keeps the defence honest."]}],
-  cues:["Look like a swing","High and in front","Stiff fingers","Roll over the top","Hit the open floor"],
+  cues:["Look like a swing","High and in front","Stiff fingers","Over, not into, the hands","Hit the open floor"],
   errors:[
    {error:"Slowing the approach or dropping the elbow early", why:"Defenders read it, step forward and dig an easy ball into transition.", fix:"Coach calls 'swing' or 'tip' only after take-off, so every approach has to look the same."},
    {error:"Soft, floppy fingers on the tip", why:"The ball is carried or thrown and the referee calls a fault.", fix:"Fingertip push-ups against a wall and tips off a held ball with a locked wrist."},
    {error:"Tipping straight into the blocker's hands", why:"The ball is pressed back down at your feet.", fix:"Contact at full reach and send it up and over, or sideways past the outside hand."},
-   {error:"Roll shot with no topspin", why:"The ball floats, hangs in the air and gives defenders time to run it down.", fix:"Contact under the ball and finish with the fingers pointing down toward the floor."},
    {error:"Tipping to the same spot every time", why:"A defender is moved there and the shot becomes a free ball.", fix:"Train three targets: behind the block, the centre of the court and the deep corner."}],
-  target:"7 of 10 off-speed shots from a full approach land in the called open zone without being playable by a defender in base.",
+  target:"7 of 10 tips from a full approach land in the called open zone without being playable by a defender in base.",
   faults:["forward_drift","contact_behind","slow_last_steps","low_elbow"],
   scene:{cam:[-7,5,-9.5], look:[1.5,1.4,-1.5],
    players:[
@@ -444,13 +443,13 @@ window.VB_TECHS = [
     {x:0.5,z:-3.3,pose:"block",lift:0.45,opp:true,label:"Blocker",note:"Has to jump for the hard swing, which opens the floor directly behind."},
     {x:0.5,z:-2.3,pose:"block",lift:0.45,opp:true,label:"Middle",note:"Closes the block, leaving the centre of the court to the back-row defenders."},
     {x:6.5,z:-3.2,pose:"platform",low:true,opp:true,label:"Line digger",note:"Set deep for a driven ball, so cannot reach a tip behind the block."},
-    {x:6.2,z:2.2,pose:"platform",low:true,opp:true,label:"Cross digger",note:"Weight is back for the spike. The roll shot to mid-court lands in front."}],
+    {x:6.2,z:2.2,pose:"platform",low:true,opp:true,label:"Cross digger",note:"Weight is back for the spike. A tip to the middle lands in front."}],
    steps:[{x:-4.4,z:-4.1,n:1},{x:-3.4,z:-3.9,n:2},{x:-2.2,z:-3.6,n:3},{x:-1.8,z:-3.9,n:4}],
    paths:[
     {a:[-1,2.2,1.2],b:[-0.9,3,-3.4],arc:2,seq:true,label:"Set"},
     {a:[-0.9,3,-3.4],b:[2.2,0,-1.8],arc:0.9,seq:true,label:"Tip"},
-    {a:[-0.9,3,-3.4],b:[5,0,0.4],arc:1.4,alt:true,label:"Roll shot"}],
-   zones:[{x:2.2,z:-1.8,w:1.8,d:2.2,label:"Behind block"},{x:5,z:0.4,w:2.4,d:2.6,label:"Mid-court"}]}},
+    {a:[-0.9,3,-3.4],b:[3.2,0,0.8],arc:1.1,alt:true,label:"Tip to the middle"}],
+   zones:[{x:2.2,z:-1.8,w:1.8,d:2.2,label:"Behind block"},{x:3.2,z:0.8,w:2.2,d:2.2,label:"Middle"}]}},
 
  /* --------------------------------------------------------------- SLIDE */
  {id:"slide", name:"Slide attack", kind:"Skill", level:"Advanced", skill:"attack",
