@@ -1,6 +1,6 @@
 # Volleyball Training Journey
 
-A personal volleyball training app: onboarding, a 3D body and technique court, film analysis, programs, progress tracking, a drill library (including off-court wall drills), exercise motion demos, and a Squad for friends and teams.
+A personal volleyball training app: onboarding, a 3D body and technique court, film analysis, programs, progress tracking, a drill library (including off-court wall drills), exercise motion demos, a Squad for friends and teams, a daily readiness check-in, player levels and daily challenges, and a courtside Toolkit (interval timer, match stat tracker, rotation viewer, calculators, rules and glossary).
 
 It is a static site (plain HTML, CSS and JavaScript, no build step). Accounts and cloud saving use [Supabase](https://supabase.com).
 
@@ -17,6 +17,9 @@ It is a static site (plain HTML, CSS and JavaScript, no build step). Accounts an
 | `js/backend.js` | Login screen and Supabase saving |
 | `supabase/schema.sql` | Database tables and security rules: run once in Supabase > SQL Editor |
 | `js/v3.js`, `css/v3.css` | Today screen, guided session mode, season calendar and tapering, soreness check, jump load, milestones, coach tools, Film comparison, privacy controls, reminders, dark theme |
+| `js/v5-home.js`, `css/v5.css` | Home screen redesign: broadcast-style HUD (readiness ring, week, streak, vertical trend, level and XP), session ticket with time per block, daily challenge, quick actions, 12-week training map, tip of the day; readiness check-in that sets the day's session; XP and levels; Progress additions (26-week training map, readiness trend, XP breakdown) |
+| `js/v5-tools.js` | The Toolkit view (`#tools`, with deep links such as `#tools/match`): interval timer (presets, EMOM, stopwatch, beeps, floating pill while running), match stat tracker (hitting %, pass rating, season totals, CSV), rotation viewer (5-1, 6-2, 4-2, at the serve and base positions, libero), calculators (touch over the net, jump from air time, hitting %, pass rating, session load, units), rules and glossary with search |
+| `js/data-v5.js` | 18 more drills (mostly solo and partner), 24 daily challenges, readiness questions, level names, tips, 14 rules summaries and a 39-term glossary |
 | `js/demo3d.js` | Puts the 3D player into exercise demos (retargets the 2D motion data onto the rig) |
 | `js/i18n.js`, `js/i18n-fr.js` | Interface translation. French covers the interface; exercise and drill instructions are still English |
 | `sw.js`, `manifest.webmanifest`, `img/icon-*` | Offline support and install-to-home-screen |
@@ -38,7 +41,7 @@ Import the repository at vercel.com (**Add New → Project**), keep the framewor
 
 ## Every time you publish
 
-1. **Bump `VERSION` in `sw.js`** (for example `vbj-v3-2` to `vbj-v3-3`). Phones cache the app for offline use and only pick up new files when this changes. If you add a new file, add it to the `CORE` list too.
+1. **Bump `VERSION` in `sw.js`** (for example `vbj-v5-1` to `vbj-v5-2`). Phones cache the app for offline use and only pick up new files when this changes. If you add a new file, add it to the `CORE` list too.
 2. If `supabase/schema.sql` changed, **run it again** in Supabase > SQL Editor. It is safe to re-run. This release changed it: player-card visibility (friends and teammates by default), hidden search for under-18s, private message threads, and the `delete_my_account` function behind the Delete my account button.
 
 ## Adding a language

@@ -846,3 +846,25 @@ window.VB_I18N_FR={
 "on a 2+ week streak": "en série de 2 semaines ou plus",
 "of this week's assignments done": "des devoirs de la semaine faits"
 };
+/* v5: Home HUD, mission board, readiness, Toolkit */
+Object.assign(window.VB_I18N_FR,{
+"Tools":"Outils","Toolkit":"Boîte à outils","Readiness":"Forme du jour","Check in":"Faire le point","Update":"Mettre à jour","No check-in":"Pas encore","Prime":"Au top","Ready":"Prêt","Steady":"Stable","Recover":"Récupération",
+"This week":"Cette semaine","Streak":"Série","Vertical":"Détente","Log a jump test":"Enregistrez un test de saut",
+"See every item":"Voir chaque élément","Check in first":"Faire le point d'abord","Start guided session":"Démarrer la séance guidée","Continue guided session":"Reprendre la séance guidée",
+"Mark done":"Marquer comme fait","Done today":"Fait aujourd'hui","Undo":"Annuler","Full history":"Tout l'historique","Rules and glossary":"Règles et lexique",
+"Guided session":"Séance guidée","Step by step with timers":"Pas à pas, avec minuteries","20-second check-in":"Bilan en 20 secondes","Interval timer":"Minuterie d'intervalles","Tabata, EMOM, custom":"Tabata, EMOM, sur mesure",
+"Match tracker":"Stats de match","Live stats, hitting %":"Stats en direct, % d'attaque","Rotations":"Rotations","5-1, 6-2 and 4-2":"5-1, 6-2 et 4-2","Calculators":"Calculateurs","Touch, jump, ratings":"Touche, saut, notes",
+"Film a rep":"Filmer une répétition","Track your joints":"Suivi des articulations","Rules and terms":"Règles et termes","Look anything up":"Tout chercher",
+"How ready are you today?":"Comment vous sentez-vous aujourd'hui?","Sleep last night":"Sommeil la nuit dernière","Sleep quality":"Qualité du sommeil","Energy":"Énergie","Legs and body":"Jambes et corps","Stress and mood":"Stress et humeur",
+"Save and set today's session":"Enregistrer et ajuster la séance","Cancel":"Annuler",
+"Training map":"Carte d'entraînement","Readiness trend":"Évolution de la forme","Check in now":"Faire le point maintenant",
+"Interval timer":"Minuterie d'intervalles","Presets":"Préréglages","Custom":"Sur mesure","Intervals":"Intervalles","Stopwatch":"Chronomètre","Use these settings":"Utiliser ces réglages",
+"Start":"Démarrer","Pause":"Pause","Resume":"Reprendre","Skip":"Passer","Reset":"Réinitialiser","Lap":"Tour","Get ready":"Préparez-vous","Work":"Effort","Rest":"Repos","Done":"Terminé",
+"Opponent":"Adversaire","Date":"Date","Add a set":"Ajouter un set","Remove last set":"Retirer le dernier set","Undo last tap":"Annuler le dernier appui","Live numbers":"Chiffres en direct",
+"Hitting %":"% d'attaque","Pass rating":"Note de réception","Serves in":"Services réussis","Points":"Points","Save match":"Enregistrer le match","Clear":"Effacer","Copy as CSV":"Copier en CSV",
+"Attack":"Attaque","Serve":"Service","Serve receive":"Réception de service","Block":"Contre","Defence":"Défense","Setting":"Passe","Kill":"Point","Error":"Faute","In play":"En jeu","Ace":"Ace","In":"Dedans",
+"Solo":"Seul","Assist":"Aide","Dig":"Défense","Ball handling error":"Faute de manipulation","Record":"Bilan","Kills":"Points","Aces":"Aces","Blocks":"Contres",
+"At the serve":"Au service","Base after the serve":"Base après le service","Libero in for the back-row middle":"Libéro à la place du central arrière","Overlap rule":"Règle de chevauchement",
+"Touch and net clearance":"Touche et hauteur au-dessus du filet","Jump from air time":"Saut d'après le temps de vol","Hitting percentage":"Pourcentage d'attaque","Session load":"Charge de séance","Units":"Unités","Convert":"Convertir",
+"Rules in plain words":"Les règles, simplement","Glossary":"Lexique","Search the rules and terms":"Chercher dans les règles et le lexique","Level up":"Niveau supérieur"
+});

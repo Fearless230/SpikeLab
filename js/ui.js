@@ -24,11 +24,12 @@ $("#toastUndo").onclick=()=>{if(undoFn)undoFn();$("#toast").hidden=true;};
 VB.onSync=s=>{const el=$("#sync");el.dataset.s=s;el.textContent=s==="cloud"?"Saved to your account":s==="device"?"Saved in this browser":"Loading";};
 
 /* ---------- routing ---------- */
-const VIEWS=["today","body","skills","film","plan","squad","progress","profile"];
+const VIEWS=["today","body","skills","film","plan","squad","progress","profile","tools"];
 let pendingScan=null;
 let view="today";
 function route(){let h=location.hash.replace("#","");
   if(/^p-/.test(h)){pendingScan=VB.decId(h.slice(2));h=S().profile?"squad":"";try{history.replaceState(null,"","#"+h);}catch(e){}if(VB.net!==undefined)setTimeout(openPending,50);}
+  VB.subview=h.split("/")[1]||"";h=h.split("/")[0];
   if(!S().profile){view="start";}else view=VIEWS.includes(h)?h:"today";
   ["start",...VIEWS].forEach(v=>{$("#v-"+v).hidden=v!==view;});
   $("#nav").hidden=!S().profile;
@@ -43,15 +44,16 @@ function route(){let h=location.hash.replace("#","");
   if(view==="film")VB.film.refresh();
   if(view==="progress")renderProgress();
   if(view==="profile"){renderReach();VB.profile.render();}
+  if(view==="tools"&&VB.tools)VB.tools.show(VB.subview);
   window.scrollTo(0,0);}
-const WNAME={today:["Game","Day"],body:["Build","Your Body"],skills:["Learn","Skills"],film:["Film","Room"],plan:["Your","Programs"],squad:["Your","Squad"],progress:["Track","Progress"],profile:["Player","Card"],start:["Start","Journey"]};
+const WNAME={today:["Game","Day"],body:["Build","Your Body"],skills:["Learn","Skills"],film:["Film","Room"],plan:["Your","Programs"],squad:["Your","Squad"],progress:["Track","Progress"],profile:["Player","Card"],tools:["Your","Toolkit"],start:["Start","Journey"]};
 const RM=matchMedia("(prefers-reduced-motion: reduce)");let wipeT=0,wiping=false;
 function reveal(){const v=$("#v-"+view);if(!v)return;let i=0;
   $$(".wrap>h2,.wrap>.kicker,.card,.tile,.pcard,.board,.chips,.cols>*",v).forEach(el=>{if(el.closest(".modal")||el.classList.contains("in"))return;el.classList.add("rv");el.style.setProperty("--i",Math.min(i++,8));io?io.observe(el):el.classList.add("in");});}
 const io="IntersectionObserver" in window?new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}}),{rootMargin:"0px 0px -6% 0px"}):null;
 function go(){const h=location.hash.replace("#",""),w=$("#wipe");
   if(RM.matches||!w||/^p-/.test(h)||!S().profile){route();reveal();return;}
-  const n=WNAME[VIEWS.includes(h)?h:"today"]||["",""];$("#wO").textContent=n[0];$("#wS").textContent=n[1];
+  const hv=h.split("/")[0],n=WNAME[VIEWS.includes(hv)?hv:"today"]||["",""];$("#wO").textContent=n[0];$("#wS").textContent=n[1];
   clearTimeout(wipeT);w.classList.remove("go");void w.offsetWidth;w.classList.add("go");wiping=true;
   wipeT=setTimeout(()=>{route();reveal();wipeT=setTimeout(()=>{w.classList.remove("go");wiping=false;},460);},400);}
 window.addEventListener("hashchange",go);window.addEventListener("hashchange",()=>{try{VB.checkUnlocks&&VB.checkUnlocks();}catch(e){}});
@@ -182,7 +184,8 @@ function renderToday(){const st=S(),p=st.profile;if(!p)return;const t=VB.ensureT
    <div class="tile"><span class="stat">This week</span><span class="v num">${wk.n}<small> / ${p.days} sessions</small></span><span class="s num">${wk.mins} of ${tmin} min</span><div class="meter"><i style="width:${Math.min(100,wk.mins/tmin*100)}%"></i></div></div>
    ${ls.acwr!=null?`<div class="tile"><span class="stat">Training load</span><span class="v num">${Math.round(ls.acwr*100)}<small>% of your 4-week average</small></span><span class="s ${ls.acwr>1.4?"warn":""}">${ls.acwr>1.4?"High. Sessions are trimmed until it settles.":ls.acwr<.7?"Low. You have room to do more.":"In the safe range."}</span></div>`:""}
    <div class="card"><div class="kicker">Technique fixes in progress</div>${open.length?open.map(f=>`<div><b>${VB.FAULTS[f].name}</b><p class="small muted">${VB.FAULTS[f].fix}</p></div>`).join("")+`<p class="small muted">Film the movement again to check them off.</p>`:`<p class="small muted">None open. Film a spike, a pass or a jump and the plan will target what the camera finds.</p>`}<a class="btn sm" href="#film">Film a movement</a></div>
-   <div class="card"><div class="kicker">Coach log</div>${st.coach.length?st.coach.slice(0,5).map(logHTML).join(""):`<p class="small muted">Changes to your plan appear here after each session.</p>`}<a class="btn sm" href="#progress">See all progress</a></div>`;}
+   <div class="card"><div class="kicker">Coach log</div>${st.coach.length?st.coach.slice(0,5).map(logHTML).join(""):`<p class="small muted">Changes to your plan appear here after each session.</p>`}<a class="btn sm" href="#progress">See all progress</a></div>`;
+  if(VB.v5&&VB.v5.today)VB.v5.today();}
 const ICON={up:"↑",down:"↓",hold:"=",fix:"✚",load:"!",info:"·"};
 function logHTML(c){return `<div class="logline ${c.kind}"><i aria-hidden="true">${ICON[c.kind]||"·"}</i><div>${esc(c.msg)}<span class="d">${VB.shortDate(c.d)}</span></div></div>`;}
 $("#heroGo").addEventListener("click",e=>{e.preventDefault();$("#todayMain").scrollIntoView({behavior:VB.reduced?"auto":"smooth",block:"start"});});

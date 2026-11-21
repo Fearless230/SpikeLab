@@ -923,6 +923,7 @@ h2 .o{display:inline-block;will-change:transform}
 @media (prefers-reduced-motion:reduce){.molbl{display:none}}
 </style>
 <link rel="stylesheet" href="css/v3.css">
+<link rel="stylesheet" href="css/v5.css">
 </head>
 <body>
 <div class="loader" id="loader" aria-hidden="true"><div class="ldtag"><span class="o">Push</span><span>your limits</span></div><div class="ldbrand"><svg class="ldball" viewBox="-25 -25 50 50" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round"><circle class="lc" pathLength="1" r="21"/><g class="ls ls1"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls2" transform="rotate(120)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls3" transform="rotate(240)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g></g></svg><div class="ldword"><span>Volleyball</span><span>Training Journey</span></div></div></div>
@@ -935,6 +936,7 @@ h2 .o{display:inline-block;will-change:transform}
       <a href="#skills" data-v="skills" data-group="skills plan body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M12 5v14M8 5v14M16 5v14"/></svg><span>Train</span></a>
       <a href="#film" data-v="film"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10.5l5-3v9l-5-3"/></svg><span>Film</span></a>
       <a href="#progress" data-v="progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg><span>Progress</span></a>
+      <a href="#tools" data-v="tools"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg><span>Tools</span></a>
       <a href="#squad" data-v="squad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.4"/><path d="M3 19.5c.9-3 3.200000-4.600000 6-4.600000s5.100000 1.600000 6 4.600000M15.500000 14.900000c2.400000 0 4.300000 1.300000 5 3.600000"/></svg><span>Squad</span></a>
     </nav>
     <div class="sync" id="sync" data-s="wait">Loading</div>
@@ -977,6 +979,7 @@ h2 .o{display:inline-block;will-change:transform}
     <a href="#film" aria-label="Film"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10.5l5-3v9l-5-3"/></svg></a>
     <a href="#body" aria-label="Body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="4.5" r="2.2"/><path d="M5 9h14M12 9v6M12 15l-3.5 6M12 15l3.5 6"/></svg></a>
     <a href="#plan" aria-label="Programs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12.5l9 5 9-5"/></svg></a>
+    <a href="#tools" aria-label="Toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg></a>
     <a href="#squad" aria-label="Squad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.4"/><path d="M3 19.5c.9-3 3.2-4.6 6-4.6s5.1 1.6 6 4.6"/></svg></a>
   </nav><div class="wrap">
     <div class="lead">
@@ -1144,6 +1147,15 @@ h2 .o{display:inline-block;will-change:transform}
   </div></div>
 </section>
 
+<!-- TOOLS -->
+<section class="view" id="v-tools" hidden>
+  <div class="wrap section"><div class="stack" style="gap:8px;margin-bottom:20px;max-width:64ch">
+    <div class="stat">Timer · match stats · rotations · calculators · rules</div>
+    <h2><span class="o">The bag</span><span>you bring to every gym</span></h2>
+    <p class="muted">Courtside tools that work offline: an interval timer with beeps, a live match stat tracker, a rotation viewer for 5-1, 6-2 and 4-2, calculators for touch, jump and ratings, and the rules in plain words.</p></div>
+  <div id="toolsRoot"></div></div>
+</section>
+
 <!-- PROFILE -->
 <section class="view" id="v-profile" hidden>
   <div id="profTop" class="ptop"></div>
@@ -1230,8 +1242,8 @@ h2 .o{display:inline-block;will-change:transform}
   <div class="row"><button class="btn" type="button" id="wizBack">Back</button><button class="btn primary" type="button" id="wizNext">Next</button><button class="btn primary" type="submit" id="wizSave">Build my plan</button></div>
 </form>
 
-<footer class="foot" id="foot"><div class="wrap fgrid"><a class="home" href="#today" aria-label="Volleyball Training Journey, home"><svg class="crest" viewBox="-25 -25 50 50" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round"><circle class="lc" pathLength="1" r="21"/><g class="ls ls1"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls2" transform="rotate(120)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls3" transform="rotate(240)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g></g></svg><span class="bn">Volleyball<br>Training Journey</span></a><div class="ftitle" aria-hidden="true"><span class="o">Push</span><span>your limits</span></div><div class="flinks"><a href="#plan">Programs</a><a href="#film">Film</a><a href="#squad">Squad</a><a href="#profile">My card</a></div></div><p class="wrap small fnote">Training guidance, not medical advice. Your data stays in your account.</p></footer>
-<div class="menu" id="menu" hidden><div class="mnav" role="dialog" aria-modal="true" aria-label="Menu"><button type="button" class="mclose2" id="menuClose" aria-label="Close the menu">×</button><nav><a style="--k:1" href="#today" data-v="today"><small>01</small><span>Today</span></a><a style="--k:2" href="#body" data-v="body"><small>02</small><span>Body</span></a><a style="--k:3" href="#skills" data-v="skills"><small>03</small><span>Skills</span></a><a style="--k:4" href="#film" data-v="film"><small>04</small><span>Film</span></a><a style="--k:5" href="#plan" data-v="plan"><small>05</small><span>Programs</span></a><a style="--k:6" href="#squad" data-v="squad"><small>06</small><span>Squad</span></a><a style="--k:7" href="#progress" data-v="progress"><small>07</small><span>Progress</span></a><a style="--k:8" href="#profile" data-v="profile"><small>08</small><span>Profile</span></a><a style="--k:9" href="#squad" data-coach-go="1"><small>09</small><span>Coach</span></a></nav><div class="mfoot"><svg class="crest" viewBox="-25 -25 50 50" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round"><circle class="lc" pathLength="1" r="21"/><g class="ls ls1"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls2" transform="rotate(120)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls3" transform="rotate(240)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g></g></svg><span>Push your limits.<br>Every rep goes on the record.</span></div></div></div>
+<footer class="foot" id="foot"><div class="wrap fgrid"><a class="home" href="#today" aria-label="Volleyball Training Journey, home"><svg class="crest" viewBox="-25 -25 50 50" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round"><circle class="lc" pathLength="1" r="21"/><g class="ls ls1"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls2" transform="rotate(120)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls3" transform="rotate(240)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g></g></svg><span class="bn">Volleyball<br>Training Journey</span></a><div class="ftitle" aria-hidden="true"><span class="o">Push</span><span>your limits</span></div><div class="flinks"><a href="#plan">Programs</a><a href="#film">Film</a><a href="#squad">Squad</a><a href="#tools">Toolkit</a><a href="#profile">My card</a></div></div><p class="wrap small fnote">Training guidance, not medical advice. Your data stays in your account.</p></footer>
+<div class="menu" id="menu" hidden><div class="mnav" role="dialog" aria-modal="true" aria-label="Menu"><button type="button" class="mclose2" id="menuClose" aria-label="Close the menu">×</button><nav><a style="--k:1" href="#today" data-v="today"><small>01</small><span>Today</span></a><a style="--k:2" href="#body" data-v="body"><small>02</small><span>Body</span></a><a style="--k:3" href="#skills" data-v="skills"><small>03</small><span>Skills</span></a><a style="--k:4" href="#film" data-v="film"><small>04</small><span>Film</span></a><a style="--k:5" href="#plan" data-v="plan"><small>05</small><span>Programs</span></a><a style="--k:6" href="#squad" data-v="squad"><small>06</small><span>Squad</span></a><a style="--k:7" href="#progress" data-v="progress"><small>07</small><span>Progress</span></a><a style="--k:8" href="#profile" data-v="profile"><small>08</small><span>Profile</span></a><a style="--k:9" href="#tools" data-v="tools"><small>09</small><span>Toolkit</span></a><a style="--k:10" href="#squad" data-coach-go="1"><small>10</small><span>Coach</span></a></nav><div class="mfoot"><svg class="crest" viewBox="-25 -25 50 50" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round"><circle class="lc" pathLength="1" r="21"/><g class="ls ls1"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls2" transform="rotate(120)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls3" transform="rotate(240)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g></g></svg><span>Push your limits.<br>Every rep goes on the record.</span></div></div></div>
 <div class="modal" id="modal" hidden><div class="mbox" role="dialog" aria-modal="true" aria-label="Dialog"><button type="button" class="mclose" aria-label="Close">×</button><div id="mbody"></div></div></div>
 <div class="toast" id="toast" hidden role="status"><span id="toastMsg"></span><button id="toastUndo" hidden>Undo</button></div>
 
@@ -1246,6 +1258,7 @@ h2 .o{display:inline-block;will-change:transform}
 <script src="js/player-data.js"></script>
 <script src="js/data-drills.js"></script>
 <script src="js/data-offcourt.js"></script>
+<script src="js/data-v5.js"></script>
 <script src="js/data-tech.js"></script>
 <script src="js/data-posprog.js"></script>
 <script src="js/config.js"></script>
@@ -1269,5 +1282,7 @@ h2 .o{display:inline-block;will-change:transform}
 <script src="js/ui.js"></script>
 <script src="js/v3.js"></script>
 <script src="js/v4.js"></script>
+<script src="js/v5-home.js"></script>
+<script src="js/v5-tools.js"></script>
 </body>
 </html>
