@@ -114,6 +114,7 @@ async function push(){if(!cloudRef||cloudBusy||!cloudDirty)return;cloudBusy=true
   cloudBusy=false;if(cloudDirty&&cloudRef){clearTimeout(cloudTimer);cloudTimer=setTimeout(push,3000);}}
 VB.initCloud=async function(onReplace){
   try{
+    if(VB.child()){VB.onSync("device");VB.net=null;VB.onNet&&VB.onNet();return;}  // under 13: nothing leaves this device
     if(!window.claude||!window.claude.use){VB.onSync("device");VB.net=null;VB.onNet&&VB.onNet();return;}
     const [db,user]=await Promise.all([window.claude.use("db"),window.claude.use("user")]);
     if(!db||!user){VB.onSync("device");VB.net=null;VB.onNet&&VB.onNet();return;}
@@ -129,6 +130,11 @@ VB.initCloud=async function(onReplace){
     VB.onSync("cloud");VB.onNet&&VB.onNet();
   }catch(e){VB.onSync("device");VB.onNet&&VB.onNet();}
 };
+
+/* ---------- age: under 18 limits sharing, under 13 keeps everything on this device ---------- */
+VB.ageOf=()=>{const a=VB.state.profile&&VB.state.profile.age;return a==null||a===""?null:+a;};
+VB.minor=()=>{const a=VB.ageOf();return a!=null&&a<18;};
+VB.child=()=>{const a=VB.ageOf();return a!=null&&a<13;};
 
 /* ---------- units ---------- */
 const imp=()=>!!(VB.state.profile&&VB.state.profile.units==="imperial");

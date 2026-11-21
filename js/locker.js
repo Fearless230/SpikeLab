@@ -94,11 +94,11 @@ VB.checkUnlocks=function(){const st=VB.state;if(!st||!st.profile)return;const U=
   if(fresh.length)VB.save&&VB.save();};
 
 /* ---------- locker UI on the profile page ---------- */
-const LOOKS=[["build","Build",[["lean","Lean"],["athletic","Athletic"],["power","Power"]]],["beard","Facial hair",[["none","None"],["stubble","Stubble"],["moustache","Moustache"],["goatee","Goatee"],["beard","Beard"]]],
+const LOOKS=[["frame","Body",[["male","Broad frame"],["female","Narrow frame"]]],["build","Build",[["lean","Lean"],["athletic","Athletic"],["power","Power"]]],["beard","Facial hair",[["none","None"],["stubble","Stubble"],["moustache","Moustache"],["goatee","Goatee"],["beard","Beard"]]],
   ["headband","Headband",[["white","White"],["black","Black"],["team","Team colour"],["none","None"]]],["cut","Jersey",[["short","Short sleeves"],["sleeveless","Sleeveless"]]],
   ["sleeve","Arm sleeve",[["none","None"],["hit","Hitting arm"],["both","Both arms"]]],["sleeveColor","Sleeve colour",[["#17144d","Navy"],["#ffffff","White"],["#111111","Black"],["#ec3b52","Coral"]]],
   ["pads","Knee pads",[["black","Black"],["white","White"],["none","None"]]],["socks","Socks",[["crew","Crew"],["high","High"],["none","None"]]],["shoe","Shoes",[["#f4f2ee","White"],["#111111","Black"],["#ec3b52","Coral"],["#39ff88","Volt"],["#5b2bff","Violet"]]]];
-VB.lookOpts=function(look){const l=look||{};return {skin:l.skin||"#c98d68",hair:l.hair||"#2b1d16",style:l.style||"short",build:l.build||"athletic",beard:l.beard||"none",headband:l.headband||"white",cut:l.cut||"short",sleeve:l.sleeve||"none",sleeveColor:l.sleeveColor||"#17144d",pads:l.pads||"black",socks:l.socks||"crew",shoe:l.shoe||"#f4f2ee"};};
+VB.lookOpts=function(look){const l=look||{};return {skin:l.skin||"#c98d68",hair:l.hair||"#2b1d16",style:l.style||"short",build:l.build||"athletic",beard:l.beard||"none",headband:l.headband||"white",cut:l.cut||"short",sleeve:l.sleeve||"none",sleeveColor:l.sleeveColor||"#17144d",pads:l.pads||"black",socks:l.socks||"crew",shoe:l.shoe||"#f4f2ee",frame:l.frame||"male"};};
 let LR=null,LP=null,LC=null;
 function preview(){const ph=document.getElementById("lockPrev");if(!ph)return;try{if(!LR){LC=document.createElement("canvas");LR=VB.GL.renderer(LC,{alpha:true});if(!LR)return;}}catch(e){return;}ph.appendChild(LC);const cv=ph;
   const r=cv.getBoundingClientRect();LR.setSize(Math.max(200,r.width),Math.max(260,r.height),Math.min(2,window.devicePixelRatio||1));

@@ -11,9 +11,62 @@ create table if not exists public.docs (
 );
 alter table public.docs enable row level security;
 
+-- Who can read a player card (players/<id>): the owner, anyone the owner lists as a friend, people on a team or
+-- invited to an event with them, and everyone only if the owner set the card to public (never for under-18s).
+create or replace function public.can_see_player(target uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select target = auth.uid() or exists (
+    select 1 from public.docs c
+    where c.path = 'players/' || target::text and (
+      (c.data->>'vis' = 'public' and coalesce((c.data->>'minor')::boolean, false) = false)
+      or coalesce(c.data->'friends', '[]'::jsonb) ? auth.uid()::text
+      or jsonb_path_exists(c.data, '$.teams[*].slots.* ? (@ == $u)', jsonb_build_object('u', auth.uid()::text))
+      or jsonb_path_exists(c.data, '$.teams[*].subs[*] ? (@ == $u)', jsonb_build_object('u', auth.uid()::text))
+      or jsonb_path_exists(c.data, '$.meets[*].inv[*] ? (@ == $u)', jsonb_build_object('u', auth.uid()::text))))
+  -- teammates on someone else's team can see each other
+  or exists (
+    select 1 from public.docs t, jsonb_array_elements(coalesce(t.data->'teams', '[]'::jsonb)) team
+    where t.path like 'players/%' and t.path not like 'players/%/%'
+      and (t.owner = auth.uid()
+           or jsonb_path_exists(team, '$.slots.* ? (@ == $u)', jsonb_build_object('u', auth.uid()::text))
+           or coalesce(team->'subs', '[]'::jsonb) ? auth.uid()::text)
+      and (t.owner = target
+           or jsonb_path_exists(team, '$.slots.* ? (@ == $u)', jsonb_build_object('u', target::text))
+           or coalesce(team->'subs', '[]'::jsonb) ? target::text))
+$$;
+
+-- Who can read a chat thread. Threads: d:<a>:<b> (direct), t:<owner>:<team id> (team), e:<host>:<event id> (event).
+create or replace function public.can_read_thread(th text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+declare k text := split_part(th, ':', 1); a text := split_part(th, ':', 2); b text := split_part(th, ':', 3); me text := auth.uid()::text;
+begin
+  if me is null then return false; end if;
+  if k = 'd' then return me = a or me = b; end if;
+  if k = 't' then
+    return me = a or exists (select 1 from public.docs c, jsonb_array_elements(coalesce(c.data->'teams', '[]'::jsonb)) team
+      where c.path = 'players/' || a and team->>'id' = b
+        and (jsonb_path_exists(team, '$.slots.* ? (@ == $u)', jsonb_build_object('u', me)) or coalesce(team->'subs', '[]'::jsonb) ? me));
+  end if;
+  if k = 'e' then
+    return me = a or exists (select 1 from public.docs c, jsonb_array_elements(coalesce(c.data->'meets', '[]'::jsonb)) m
+      where c.path = 'players/' || a and m->>'id' = b and coalesce(m->'inv', '[]'::jsonb) ? me);
+  end if;
+  return false;
+end $$;
+revoke execute on function public.can_see_player(uuid) from public, anon;
+revoke execute on function public.can_read_thread(text) from public, anon;
+grant execute on function public.can_see_player(uuid) to authenticated;
+grant execute on function public.can_read_thread(text) to authenticated;
+
 drop policy if exists "read own data and player cards" on public.docs;
-create policy "read own data and player cards" on public.docs for select to authenticated
-  using (owner = (select auth.uid()) or path like 'players/%');
+drop policy if exists "read own data, visible cards and own threads" on public.docs;
+create policy "read own data, visible cards and own threads" on public.docs for select to authenticated
+  using (
+    owner = (select auth.uid())
+    -- player cards and their pictures
+    or (path like 'players/%' and path not like 'players/%/m/%' and public.can_see_player(split_part(path, '/', 2)::uuid))
+    -- chat: players/<sender>/m/<thread>, readable only by people in that thread
+    or (path like 'players/%/m/%' and public.can_read_thread(data->>'th')));
 
 drop policy if exists "create own docs" on public.docs;
 create policy "create own docs" on public.docs for insert to authenticated
@@ -43,6 +96,7 @@ create table if not exists public.profiles (
   avatar_url text,
   updated_at timestamptz not null default now()
 );
+alter table public.profiles add column if not exists minor boolean not null default false;
 alter table public.profiles enable row level security;
 
 drop policy if exists "signed-in users can see names" on public.profiles;
@@ -65,7 +119,8 @@ language sql stable security definer set search_path = public as $$
   from public.profiles p join auth.users u on u.id = p.id
   where auth.uid() is not null
     and length(trim(q)) >= 2
-    and (lower(u.email) = lower(trim(q)) or p.name ilike replace(replace(trim(q), '%', ''), '_', '') || '%')
+    -- under-18s can only be found by someone who types their exact email
+    and (lower(u.email) = lower(trim(q)) or (not p.minor and p.name ilike replace(replace(trim(q), '%', ''), '_', '') || '%'))
   order by p.name
   limit 6
 $$;
@@ -76,3 +131,11 @@ grant execute on function public.find_players(text) to authenticated;
 do $$ begin
   alter publication supabase_realtime add table public.docs;
 exception when duplicate_object then null; end $$;
+
+-- 5. Delete my account: removes the login and, through "on delete cascade", every document and profile row.
+create or replace function public.delete_my_account()
+returns void language sql security definer set search_path = public, auth as $$
+  delete from auth.users where id = auth.uid();
+$$;
+revoke execute on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

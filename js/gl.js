@@ -51,7 +51,7 @@ class Node{
   worldPos(){return [this.world[12],this.world[13],this.world[14]];}
 }
 const mat=o=>Object.assign({color:[1,1,1],emissive:[0,0,0],opacity:1,transparent:false,depthWrite:true,depthTest:true,double:false,unlit:false,map:null,vcolor:false,rough:.6,metal:0,fog:true,rim:1,additive:false},o||{},
-  {color:hex(o&&o.color!=null?o.color:[1,1,1]),emissive:hex(o&&o.emissive!=null?o.emissive:[0,0,0])});
+  {color:hex(o&&o.color!=null?o.color:[1,1,1]),emissive:hex(o&&o.emissive!=null?o.emissive:[0,0,0]),inkColor:hex(o&&o.inkColor!=null?o.inkColor:"#2a2233")});
 
 /* ---------- geometry ---------- */
 function geo(p,n,i,uv,c){return {p:p instanceof Float32Array?p:new Float32Array(p),n:n instanceof Float32Array?n:new Float32Array(n),i:(i instanceof Uint32Array||i instanceof Uint16Array)?i:(p.length/3>65535?new Uint32Array(i):new Uint16Array(i)),uv:uv?(uv instanceof Float32Array?uv:new Float32Array(uv)):null,c:c?(c instanceof Float32Array?c:new Float32Array(c)):null,buf:null,bs:null};}
@@ -77,7 +77,7 @@ function tube(pts,r,rs){rs=rs||8;const p=[],n=[],ix=[];let prevN=null;
     for(let j=0;j<=rs;j++){const v=j/rs*Math.PI*2,d=add(sc(a,Math.cos(v)),sc(b,Math.sin(v)));p.push(...add(pts[i],sc(d,r)));n.push(...d);}}
   for(let i=0;i<pts.length-1;i++)for(let j=0;j<rs;j++){const a=i*(rs+1)+j,b=a+rs+1;ix.push(a,b,a+1,b,b+1,a+1);}return geo(p,n,ix);}
 /* bake a list of [geometry, matrix] into one */
-function merge(list){if(list.some(x=>x[0].j)){let nv=0;list.forEach(([g])=>nv+=g.p.length/3);const J=new Float32Array(nv*2),Wt=new Float32Array(nv);let o=0;list.forEach(([g])=>{const c=g.p.length/3;if(g.j){J.set(g.j,o*2);Wt.set(g.w,o);}else Wt.fill(1,o,o+c);o+=c;});const out=merge(list.map(x=>[Object.assign({},x[0],{j:null,w:null}),x[1],x[2]]));out.j=J;out.w=Wt;return out;}let np=0,ni=0;list.forEach(([g])=>{np+=g.p.length;ni+=g.i.length;});const p=new Float32Array(np),n=new Float32Array(np),hasC=list.some(x=>x[2]),c=hasC?new Float32Array(np):null,I=np/3>65535?new Uint32Array(ni):new Uint16Array(ni);let op=0,oi=0;
+function merge(list){if(list.some(x=>x[0].j)){let nv=0;list.forEach(([g])=>nv+=g.p.length/3);const J=new Uint8Array(nv*4),Wt=new Uint8Array(nv*4);let o=0;list.forEach(([g])=>{const c=g.p.length/3;if(g.j){J.set(g.j,o*4);Wt.set(g.w,o*4);}else for(let k=0;k<c;k++)Wt[(o+k)*4]=255;o+=c;});const out=merge(list.map(x=>[Object.assign({},x[0],{j:null,w:null}),x[1],x[2]]));out.j=J;out.w=Wt;return out;}let np=0,ni=0;list.forEach(([g])=>{np+=g.p.length;ni+=g.i.length;});const p=new Float32Array(np),n=new Float32Array(np),hasC=list.some(x=>x[2]),c=hasC?new Float32Array(np):null,I=np/3>65535?new Uint32Array(ni):new Uint16Array(ni);let op=0,oi=0;
   list.forEach(([g,m,col])=>{const nm=m?M4.nrm3(m):null,base=op/3;for(let k=0;k<g.p.length;k+=3){const v=m?M4.xf(m,[g.p[k],g.p[k+1],g.p[k+2]]):[g.p[k],g.p[k+1],g.p[k+2]];p.set(v,op+k);
       let q=[g.n[k],g.n[k+1],g.n[k+2]];if(nm)q=norm([nm[0]*q[0]+nm[3]*q[1]+nm[6]*q[2],nm[1]*q[0]+nm[4]*q[1]+nm[7]*q[2],nm[2]*q[0]+nm[5]*q[1]+nm[8]*q[2]]);n.set(q,op+k);if(c)c.set(col||[1,1,1],op+k);}
     for(let k=0;k<g.i.length;k++)I[oi+k]=g.i[k]+base;op+=g.p.length;oi+=g.i.length;});
@@ -87,14 +87,34 @@ function bounds(g){if(g.bs)return g.bs;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];
   const c=sc(add(mn,mx),.5);let r=0;for(let i=0;i<g.p.length;i+=3)r=Math.max(r,Math.hypot(g.p[i]-c[0],g.p[i+1]-c[1],g.p[i+2]-c[2]));return g.bs={c,r};}
 
 /* ---------- renderer ---------- */
-const VS=`attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;attribute vec2 aU;attribute vec2 aJ;attribute float aWt;uniform mat4 uM,uVP;uniform mat3 uNM;uniform mat4 uB[24];uniform float uSkin;varying vec3 vN,vW,vC;varying vec2 vU;
-void main(){vec4 p=vec4(aP,1.);vec3 n=aN;if(uSkin>.5){mat4 m=uB[int(aJ.x+.5)]*aWt+uB[int(aJ.y+.5)]*(1.-aWt);p=m*p;n=(m*vec4(aN,0.)).xyz;}vec4 w=uM*p;vW=w.xyz;vN=uNM*n;vC=aC;vU=aU;gl_Position=uVP*w;}`;
-const FS=`precision highp float;varying vec3 vN,vW,vC;varying vec2 vU;
+const VS=`attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;attribute vec2 aU;attribute vec4 aJ;attribute vec4 aWt;uniform mat4 uM,uVP;uniform mat3 uNM;uniform vec4 uB[99];uniform float uSkin,uInk,uOut;uniform vec3 uCam;varying vec3 vN,vW,vC,vR;varying vec2 vU;
+mat4 bm(float f){int i=int(f+.5)*3;vec4 a=uB[i],b=uB[i+1],c=uB[i+2];return mat4(a.x,b.x,c.x,0.,a.y,b.y,c.y,0.,a.z,b.z,c.z,0.,a.w,b.w,c.w,1.);}
+void main(){vec4 p=vec4(aP,1.);vec3 n=aN;if(uSkin>.5){mat4 m=bm(aJ.x)*aWt.x+bm(aJ.y)*aWt.y+bm(aJ.z)*aWt.z+bm(aJ.w)*aWt.w;p=m*p;n=(m*vec4(aN,0.)).xyz;}vec4 w=uM*p;if(uInk>.5){vec3 nw=normalize(mat3(uM)*n);w.xyz+=nw*uOut*length(uCam-w.xyz);}vW=w.xyz;vN=uNM*n;vC=aC;vU=aU;vR=aP;gl_Position=uVP*w;}`;
+/* skinning: up to 33 bones, each a 3x4 affine matrix packed as three rows (keeps the vertex shader inside the
+   128-vector uniform budget WebGL guarantees on every phone); 4 bone influences per vertex, weights in aWt. */
+const MAXB=33;
+const FS=`precision highp float;varying vec3 vN,vW,vC,vR;varying vec2 vU;uniform float uToon,uInk;
+float h2(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
+float vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
 uniform vec3 uCol,uEm,uSky,uGnd,uD1,uC1,uD2,uC2,uRimC,uCam,uFogC;uniform float uOp,uRough,uMetal,uUnlit,uMap,uVC,uFogN,uFogF,uShadow,uRim,uSpot,uWrap,uSheen,uExp;uniform vec3 uSpP,uSpC;uniform sampler2D uTex;
 void main(){if(uShadow>.5){gl_FragColor=vec4(0.,0.,.02,uOp);return;}
  vec3 base=uCol;if(uVC>.5)base*=vC;float a=uOp;if(uMap>.5){vec4 t=texture2D(uTex,vU);base*=t.rgb;a*=t.a;}if(a<.004)discard;
  vec3 col;
- if(uUnlit>.5){col=base+uEm;}
+ if(uInk>.5){gl_FragColor=vec4(uCol,1.);return;}
+ if(uToon>.5){
+  /* comic look: flat colour with one cool shadow wash and a soft terminator, watercolour blotches that stay on the body
+     (rest position), a faint paper grain, and pigment pooling toward the edges */
+  vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;vec3 V=normalize(uCam-vW);
+  float d=dot(N,normalize(uD1+vec3(0.,.15,0.)))+uWrap*.6;float lt=smoothstep(.0,.06,d);
+  float ao=smoothstep(-.6,.2,N.y)*.08;
+  vec3 sh=base*vec3(.68,.69,.86);col=mix(sh,base,lt)*(1.-.08+ao);
+  float b1=vn(vR*4.)*.65+vn(vR*9.)*.35;col*=1.+(b1-.5)*.07;
+  col*=.985+h2(floor(gl_FragCoord.xy*.5))*.02;
+  float e=1.-max(dot(N,V),0.);col=mix(col,col*vec3(.78,.76,.9),smoothstep(.45,.9,e)*.45);
+  col+=pow(uRimC,vec3(.8))*smoothstep(.7,.95,e)*lt*.12;
+  col=clamp(col+uEm,0.,1.);}
+ else if(uUnlit>.5){col=base+uEm;}
  else{vec3 alb=pow(base,vec3(2.2));vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;vec3 V=normalize(uCam-vW);
   vec3 sky=pow(uSky,vec3(2.2)),gnd=pow(uGnd,vec3(2.2));vec3 amb=mix(gnd,sky,N.y*.5+.5)*1.15;
   float w=uWrap;float d1=max((dot(N,uD1)+w)/(1.+w),0.),d2=max((dot(N,uD2)+w)/(1.+w),0.);
@@ -116,7 +136,7 @@ function renderer(canvas,opt){opt=opt||{};const cid=++CTXID;
   const sh=(t,s)=>{const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(x));return x;};
   const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);if(!gl.getProgramParameter(pr,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(pr));
   gl.useProgram(pr);const A={},U={};["aP","aN","aC","aU","aJ","aWt"].forEach(k=>A[k]=gl.getAttribLocation(pr,k));
-  "uWrap uSheen uExp uSkin uM uVP uNM uCol uEm uSky uGnd uD1 uC1 uD2 uC2 uRimC uCam uFogC uOp uRough uMetal uUnlit uMap uVC uFogN uFogF uShadow uRim uTex uSpot uSpP uSpC".split(" ").forEach(k=>U[k]=gl.getUniformLocation(pr,k));U.uB=gl.getUniformLocation(pr,"uB[0]");
+  "uToon uInk uOut uWrap uSheen uExp uSkin uM uVP uNM uCol uEm uSky uGnd uD1 uC1 uD2 uC2 uRimC uCam uFogC uOp uRough uMetal uUnlit uMap uVC uFogN uFogF uShadow uRim uTex uSpot uSpP uSpC".split(" ").forEach(k=>U[k]=gl.getUniformLocation(pr,k));U.uB=gl.getUniformLocation(pr,"uB[0]")||gl.getUniformLocation(pr,"uB");
   const white=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,white);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
   function upload(g){g.bufs=g.bufs||{};if(g.bufs[cid]){g.buf=g.bufs[cid];return g.buf;}if(g.i instanceof Uint32Array&&!u32){g.i=new Uint16Array(g.i);}const mk=(d,el)=>{const b=gl.createBuffer();gl.bindBuffer(el?gl.ELEMENT_ARRAY_BUFFER:gl.ARRAY_BUFFER,b);gl.bufferData(el?gl.ELEMENT_ARRAY_BUFFER:gl.ARRAY_BUFFER,d,gl.STATIC_DRAW);return b;};
     g.buf=g.bufs[cid]={p:mk(g.p),n:mk(g.n),c:g.c?mk(g.c):null,u:g.uv?mk(g.uv):null,j:g.j?mk(g.j):null,w:g.w?mk(g.w):null,i:mk(g.i,true),cnt:g.i.length,type:g.i instanceof Uint32Array?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT};return g.buf;}
@@ -125,13 +145,15 @@ function renderer(canvas,opt){opt=opt||{};const cid=++CTXID;
     if(P){gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);const ext=gl.getExtension("EXT_texture_filter_anisotropic");if(ext)gl.texParameterf(gl.TEXTURE_2D,ext.TEXTURE_MAX_ANISOTROPY_EXT,4);}
     else gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
     const wr=P&&t.repeat?gl.REPEAT:gl.CLAMP_TO_EDGE;gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,wr);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,wr);return tex;}
-  let W=1,H=1,fogF=0;
+  let W=1,H=1,fogF=0,inkW=.002;
   const api={gl,canvas,
     setSize(w,h,dpr){dpr=Math.min(dpr||window.devicePixelRatio||1,2);W=w;H=h;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);},
     camMats(cam){cam.aspect=W/H;cam.proj=M4.persp((cam.fov||40)*Math.PI/180,cam.aspect,cam.near||.1,cam.far||200);if(cam.shift)cam.proj[8]+=cam.shift;if(cam.shiftY)cam.proj[9]+=cam.shiftY;cam.view=M4.lookAt(cam.pos,cam.target,cam.up);cam.vp=M4.mul(cam.proj,cam.view);return cam;},
     render(scene,cam){FID++;api.camMats(cam);scene.root.update(null,cam);
       gl.viewport(0,0,canvas.width,canvas.height);const cc=scene.clear||[0,0,0,0];gl.clearColor(cc[0],cc[1],cc[2],cc[3]==null?1:cc[3]);gl.clearStencil(0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
-      gl.useProgram(pr);gl.uniformMatrix4fv(U.uVP,false,cam.vp);gl.uniform3fv(U.uCam,cam.pos);
+      gl.useProgram(pr);gl.uniformMatrix4fv(U.uVP,false,cam.vp);gl.uniform3fv(U.uCam,cam.pos);gl.uniform1f(U.uInk,0);
+      // ink outline width: about 1.6 CSS pixels whatever the distance
+      inkW=2.1*(canvas.width/Math.max(1,W))*2*Math.tan((cam.fov||40)*Math.PI/360)/Math.max(1,canvas.height)*(scene.inkScale||1);
       const L=scene.light||{};gl.uniform3fv(U.uSky,hex(L.sky||[.6,.6,.7]));gl.uniform3fv(U.uGnd,hex(L.gnd||[.15,.12,.2]));gl.uniform3fv(U.uD1,norm(L.d1||[.4,1,.5]));gl.uniform3fv(U.uC1,hex(L.c1||[.8,.8,.8]));
       gl.uniform3fv(U.uD2,norm(L.d2||[-.5,.3,-.6]));gl.uniform3fv(U.uC2,hex(L.c2||[.2,.2,.3]));gl.uniform3fv(U.uRimC,hex(L.rim||[.3,.3,.5]));
       const sp=L.spot;gl.uniform1f(U.uSpot,sp?sp.k:0);gl.uniform3fv(U.uSpP,sp?sp.pos:[0,10,0]);gl.uniform3fv(U.uSpC,hex(sp?sp.col:[0,0,0]));
@@ -156,10 +178,10 @@ function renderer(canvas,opt){opt=opt||{};const cid=++CTXID;
     gl.bindBuffer(gl.ARRAY_BUFFER,b.n);gl.enableVertexAttribArray(A.aN);gl.vertexAttribPointer(A.aN,3,gl.FLOAT,false,0,0);
     if(A.aC>=0){if(b.c){gl.bindBuffer(gl.ARRAY_BUFFER,b.c);gl.enableVertexAttribArray(A.aC);gl.vertexAttribPointer(A.aC,3,gl.FLOAT,false,0,0);}else{gl.disableVertexAttribArray(A.aC);gl.vertexAttrib3f(A.aC,1,1,1);}}
     if(A.aU>=0){if(b.u){gl.bindBuffer(gl.ARRAY_BUFFER,b.u);gl.enableVertexAttribArray(A.aU);gl.vertexAttribPointer(A.aU,2,gl.FLOAT,false,0,0);}else{gl.disableVertexAttribArray(A.aU);gl.vertexAttrib2f(A.aU,0,0);}}
-    if(A.aJ>=0){if(b.j){gl.bindBuffer(gl.ARRAY_BUFFER,b.j);gl.enableVertexAttribArray(A.aJ);gl.vertexAttribPointer(A.aJ,2,gl.FLOAT,false,0,0);}else{gl.disableVertexAttribArray(A.aJ);gl.vertexAttrib2f(A.aJ,0,0);}}
-    if(A.aWt>=0){if(b.w){gl.bindBuffer(gl.ARRAY_BUFFER,b.w);gl.enableVertexAttribArray(A.aWt);gl.vertexAttribPointer(A.aWt,1,gl.FLOAT,false,0,0);}else{gl.disableVertexAttribArray(A.aWt);gl.vertexAttrib1f(A.aWt,1);}}
+    if(A.aJ>=0){if(b.j){gl.bindBuffer(gl.ARRAY_BUFFER,b.j);gl.enableVertexAttribArray(A.aJ);gl.vertexAttribPointer(A.aJ,4,gl.UNSIGNED_BYTE,false,0,0);}else{gl.disableVertexAttribArray(A.aJ);gl.vertexAttrib4f(A.aJ,0,0,0,0);}}
+    if(A.aWt>=0){if(b.w){gl.bindBuffer(gl.ARRAY_BUFFER,b.w);gl.enableVertexAttribArray(A.aWt);gl.vertexAttribPointer(A.aWt,4,gl.UNSIGNED_BYTE,true,0,0);}else{gl.disableVertexAttribArray(A.aWt);gl.vertexAttrib4f(A.aWt,1,0,0,0);}}
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,b.i);}
-  function skin(n){if(n.skin){gl.uniform1f(U.uSkin,1);gl.uniformMatrix4fv(U.uB,false,n.skin.compute(n,FID));}else gl.uniform1f(U.uSkin,0);}
+  function skin(n){if(n.skin){gl.uniform1f(U.uSkin,1);gl.uniform4fv(U.uB,n.skin.compute(n,FID));}else gl.uniform1f(U.uSkin,0);}
   function draw(n){const m=n.mat,g=n.geo;bind(g);skin(n);gl.uniformMatrix4fv(U.uM,false,n.world);gl.uniformMatrix3fv(U.uNM,false,M4.nrm3(n.world));
     gl.uniform3fv(U.uCol,m.color);gl.uniform3fv(U.uEm,m.emissive);gl.uniform1f(U.uOp,m.opacity);gl.uniform1f(U.uRough,m.rough);gl.uniform1f(U.uMetal,m.metal);gl.uniform1f(U.uUnlit,m.unlit?1:0);gl.uniform1f(U.uRim,m.rim);gl.uniform1f(U.uWrap,m.wrap||0);gl.uniform1f(U.uSheen,m.sheen||0);
     gl.uniform1f(U.uVC,m.vcolor&&g.c?1:0);gl.uniform1f(U.uMap,m.map?1:0);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texOf(m.map));
@@ -168,8 +190,12 @@ function renderer(canvas,opt){opt=opt||{};const cid=++CTXID;
     gl.depthMask(m.depthWrite!==false&&!m.additive);if(m.depthTest===false)gl.disable(gl.DEPTH_TEST);else gl.enable(gl.DEPTH_TEST);
     if(m.double)gl.disable(gl.CULL_FACE);else{gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);}
     if(m.polyOffset){gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(-1,-1);}
+    gl.uniform1f(U.uToon,m.toon?1:0);
     gl.drawElements(gl.TRIANGLES,g.buf.cnt,g.buf.type,0);
     if(m.polyOffset)gl.disable(gl.POLYGON_OFFSET_FILL);
+    // ink outline: the back faces, pushed out along the normal, in the ink colour
+    if(m.ink&&!m.transparent){gl.uniform1f(U.uInk,1);gl.uniform1f(U.uOut,inkW*(m.inkW||1));gl.uniform3fv(U.uCol,m.inkColor);gl.enable(gl.CULL_FACE);gl.cullFace(gl.FRONT);
+      gl.drawElements(gl.TRIANGLES,g.buf.cnt,g.buf.type,0);gl.cullFace(gl.BACK);gl.uniform1f(U.uInk,0);}
 }
   return api;}
 function hitTri(g,o,d){const P=g.p,I=g.i;let best=null;
@@ -197,5 +223,5 @@ function orbit(el,cam,o){o=Object.assign({min:2,max:30,maxPolar:Math.PI/2-.03,mi
     cam.pos=[cam.target[0]+st.r*s*Math.sin(st.th),cam.target[1]+st.r*Math.cos(st.ph),cam.target[2]+st.r*s*Math.cos(st.th)];}
   return {update(){if(!st.pts.size&&(Math.abs(st.vth)>1e-5||Math.abs(st.vph)>1e-5)){st.th+=st.vth;st.ph+=st.vph;st.vth*=1-o.damp*2;st.vph*=1-o.damp*2;apply();}if(st.auto&&!st.pts.size){st.th+=st.auto;apply();}},
     sync(){fromCam();st.vth=st.vph=0;},set auto(v){st.auto=v;},get dragging(){return st.pts.size>0;},opts:o,state:st,apply};}
-VB.GL={M4,V3,Node,mat,geo,lathe,sphere,box,plane,quad,ring,cyl,torus,tube,merge,T,renderer,canvasTex,orbit,hex,bounds};
+VB.GL={MAXB,M4,V3,Node,mat,geo,lathe,sphere,box,plane,quad,ring,cyl,torus,tube,merge,T,renderer,canvasTex,orbit,hex,bounds};
 })();

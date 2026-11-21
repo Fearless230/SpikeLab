@@ -261,8 +261,33 @@ VB.film=(function(){
   /* ---------- flow ---------- */
   function setStatus(t){$("#fStatus",root).textContent=t||"";}
   function setStep(n){root.querySelectorAll(".fstep").forEach((el,i)=>{el.classList.toggle("on",i===n);el.classList.toggle("done",i<n);});}
+  /* ---------- automatic joints (MediaPipe pose model, runs in this browser; the video never leaves the device) ---------- */
+  const MP="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14",MODEL="https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+  let lmP=null;
+  function landmarker(){if(lmP)return lmP;lmP=(async()=>{const V=await import(MP+"/vision_bundle.mjs"),fs=await V.FilesetResolver.forVisionTasks(MP+"/wasm");
+      return V.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:MODEL,delegate:"CPU"},runningMode:"IMAGE",numPoses:1});})();lmP.catch(()=>{lmP=null;});return lmP;}
+  function toJoints(L){const pt=i=>L[i]&&(L[i].visibility==null||L[i].visibility>.35)?[L[i].x*AW,L[i].y*AH]:null,o={};
+    if(view==="front"){const m={head:0,l_shoulder:11,r_shoulder:12,l_hip:23,r_hip:24,l_knee:25,r_knee:26,l_ankle:27,r_ankle:28};for(const j in m)o[j]=pt(m[j]);
+      if(o.head){const e=pt(7)||pt(8);if(e)o.head=[o.head[0],Math.min(o.head[1],e[1])-.25*Math.abs(o.head[1]-(o.l_shoulder||o.head)[1])];}}
+    else{// the side nearer the camera: the one the model sees better
+      const vis=i=>L[i]?L[i].visibility||0:0,l=vis(11)+vis(13)+vis(23)+vis(25),r=vis(12)+vis(14)+vis(24)+vis(26),b=l>=r?0:1;
+      const m={shoulder:11+b,elbow:13+b,wrist:15+b,hip:23+b,knee:25+b,ankle:27+b,toe:31+b};for(const j in m)o[j]=pt(m[j]);
+      const ear=pt(7+b)||pt(0);if(ear&&o.shoulder){const d=o.shoulder[1]-ear[1];o.head=[ear[0],ear[1]-.35*d];}
+      if(o.toe&&o.ankle)facing=o.toe[0]>=o.ankle[0]?1:-1;}
+    const need=joints().filter(j=>!o[j]);return need.length?null:o;}
+  async function autoPose(k0){try{const lm=await Promise.race([landmarker(),new Promise((_,rej)=>setTimeout(()=>rej(new Error("slow")),20000))]);
+      const cv=document.createElement("canvas");cv.width=AW;cv.height=AH;const g=cv.getContext("2d");const t0=video.currentTime;
+      const ks=[k0,...[.15,.4,.65,.9].map(f=>Math.round(f*(F.length-1)))].filter((v,i,a)=>a.indexOf(v)===i);let n=0;
+      for(const k of ks){await seekTo(F[k].t);g.drawImage(video,0,0,AW,AH);const r=lm.detect(cv),L=r&&r.landmarks&&r.landmarks[0];if(!L)continue;const o=toJoints(L);if(o){anchors[k]=o;n++;}}
+      await seekTo(t0);if(!anchors[k0]||!n){if(n)return n;return 0;}return n;}catch(e){return 0;}}
+  function seekTo(t){return new Promise(r=>{if(Math.abs(video.currentTime-t)<1e-3)return r();const f=()=>{video.removeEventListener("seeked",f);r();};video.addEventListener("seeked",f);video.currentTime=t;setTimeout(f,1500);});}
   async function startMark(){if(busy||!meta)return;busy=true;video.pause();$("#fError",root).hidden=true;try{setStatus("Reading the clip");await sample(p=>setStatus("Reading the clip, "+R(p*100)+"%"));
-      facing=1;const k=frameAt(video.currentTime);anchors={};anchors[k]=estimate();P=null;res=null;mode="mark";canvas.style.pointerEvents="auto";setStep(1);setStatus("");renderMarkUI();
+      facing=1;const k=frameAt(video.currentTime);anchors={};anchors[k]=estimate();P=null;res=null;
+      // automatic joint placement: an on-device pose model places the dots on this frame and a few others; the dots
+      // stay draggable, and if the model can't load (offline, old browser) you place them by hand as before
+      setStatus("Finding your joints automatically");const auto=await autoPose(k);
+      mode="mark";canvas.style.pointerEvents="auto";setStep(1);setStatus(auto?"Dots placed automatically on "+auto+" frames. Check them and drag any that are off.":"");renderMarkUI();
+      const note=$("#fMark b",root);if(note)note.textContent=auto?"Check the dots.":"Drag each dot onto your body.";
     }catch(e){err("This clip could not be read. Try recording it again as an MP4.");}finally{busy=false;}}
   function renderMarkUI(){const box=$("#fMark",root);box.hidden=mode!=="mark";$("#fRun",root).hidden=mode!=="mark";}
   async function run(){if(busy)return;busy=true;try{setStatus("Following your joints through the clip");await new Promise(r=>setTimeout(r,30));trackAll();setStatus("Scoring your form");await new Promise(r=>setTimeout(r,10));
@@ -391,6 +416,8 @@ VB.film=(function(){
   function hist(){const H=S().film,el=$("#fHist",root);if(!el)return;
     el.innerHTML=H.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Movement</th><th class="r">Score</th><th class="r">Jump</th><th>Faults</th></tr></thead><tbody>${H.slice(0,12).map(r=>`<tr><td>${VB.shortDate(r.date)}</td><td>${VB.MOVES[r.move]?VB.MOVES[r.move].name:r.move}</td><td class="r num">${r.score!=null?r.score:"–"}</td><td class="r num">${r.jump?VB.lenOut(r.jump)+" "+VB.lu():"–"}</td><td style="white-space:normal">${r.faults&&r.faults.length?r.faults.map(f=>VB.FAULTS[f.id]?VB.FAULTS[f.id].name:f.id).join(", "):(r.notesOnly?"Notes only":"On target")}</td></tr>`).join("")}</tbody></table></div>`:`<p class="small muted">Analysed clips are listed here with their score and what was found, so you can watch faults disappear. Videos are not stored.</p>`;}
   return {init(el){root=el;shell();},frame(){tick();draw();},refresh(){if(root)hist();},
+    /* read-only snapshot for the reference comparison in v3.js */
+    data(){return res&&P?{move,view,P,res,times:F.map(x=>x.t),facing,AW,AH}:null;},
     _debug:{tools:()=>({strip,stripMatch,ang:(c,p)=>Math.atan2(c[1]-p[1],c[0]-p[0])}),set(pts,k){anchors={};anchors[k||0]=pts;},get res(){return res;},get F(){return F;},get P(){return P;},run,startMark,get AW(){return AW;},get AH(){return AH;}}};
 })();
 })();

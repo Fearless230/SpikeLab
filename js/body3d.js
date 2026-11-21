@@ -84,10 +84,14 @@ VB.body=(function(){
     list.forEach(o=>{let best=null,bd=-1;anchors[o.id].forEach(m=>{const c=m.userData.c;let nx=c[0],nz=c[2];const l=Math.hypot(nx,nz);if(l<1e-6){nx=0;nz=1;}else{nx/=l;nz/=l;}const d=(nx*cd[0]+nz*cd[2])/cl;if(d>bd){bd=d;best=m;}});
       if(!best||bd<.15||!best.visible)return;const p=R.project(best.userData.c,cam),x=(p[0]+1)/2*w,y=(1-p[1])/2*h;if(x<40||x>w-40||y<50||y>h-20)return;
       if(placed.some(q=>Math.abs(q[1]-y)<15&&Math.abs(q[0]-x)<110))return;placed.push([x,y]);show.add(o.id);const el=labels[o.id];el.style.left=x+"px";el.style.top=y+"px";el.classList.toggle("on",o.s.sel||o.id===active);});
-    for(const id in labels)labels[id].hidden=!show.has(id);}
+    for(const id in labels)labels[id].hidden=!show.has(id);
+    /* keep labels inside the stage: a label that would run past the right edge points left instead */
+    show.forEach(id=>{const el=labels[id];el.classList.remove("flip");const x=parseFloat(el.style.left);if(x+10+el.offsetWidth>w-4)el.classList.add("flip");});}
   const api={
     init(el,callbacks){stage=el;cb=callbacks||{};tip=el.querySelector(".tip");labelLayer=el.querySelector(".labels");},
-    show(){if(!inited)init();size();},
+    show(){if(!inited){if(window.VB_BODY)init();else{inited=true;const ld=document.createElement("div");ld.className="fallback loading";ld.setAttribute("role","status");ld.textContent="Loading the 3D anatomy model…";stage.appendChild(ld);
+        /* the anatomy mesh is large (about 1.9 MB), so it is only downloaded the first time Body opens */
+        const sc=document.createElement("script");sc.src="js/body-mesh.js";sc.onload=()=>{ld.remove();inited=false;init();size();};sc.onerror=()=>{ld.remove();fail();};document.head.appendChild(sc);}}size();},
     setColors(fn){colorFn=fn;if(ok&&!anim)paint();},
     repaint(){if(ok&&!anim)paint();},
     setHover(id){if(hover===id)return;hover=id;if(ok&&!anim)paint();},

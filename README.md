@@ -10,9 +10,17 @@ It is a static site (plain HTML, CSS and JavaScript, no build step). Accounts an
 |---|---|
 | `index.html` | The app |
 | `js/` | App code and training data |
+| `js/athlete.js`, `js/player-data.js` | The 3D players: a rigged character with technique animations, built and animated in Blender |
+| `tools/blender/` | Blender source (`player.blend`) and the pipeline that exports `js/player-data.js`. See its README |
+| `tools/viewer.html` | Dev viewer for the 3D players and clips |
 | `js/config.js` | Supabase project URL and publishable key (safe to be public) |
 | `js/backend.js` | Login screen and Supabase saving |
 | `supabase/schema.sql` | Database tables and security rules: run once in Supabase > SQL Editor |
+| `js/v3.js`, `css/v3.css` | Today screen, guided session mode, season calendar and tapering, soreness check, jump load, milestones, coach tools, Film comparison, privacy controls, reminders, dark theme |
+| `js/demo3d.js` | Puts the 3D player into exercise demos (retargets the 2D motion data onto the rig) |
+| `js/i18n.js`, `js/i18n-fr.js` | Interface translation. French covers the interface; exercise and drill instructions are still English |
+| `sw.js`, `manifest.webmanifest`, `img/icon-*` | Offline support and install-to-home-screen |
+| `img/og.png` | Preview image shown when the link is shared |
 | `.nojekyll` | Tells GitHub Pages to serve the files as they are |
 
 ## Publish with GitHub Pages
@@ -28,7 +36,17 @@ Every push to `main` republishes the site automatically.
 
 Import the repository at vercel.com (**Add New → Project**), keep the framework preset as **Other**, no build command, and deploy. Then put the Vercel address in Supabase's URL Configuration the same way.
 
+## Every time you publish
+
+1. **Bump `VERSION` in `sw.js`** (for example `vbj-v3-2` to `vbj-v3-3`). Phones cache the app for offline use and only pick up new files when this changes. If you add a new file, add it to the `CORE` list too.
+2. If `supabase/schema.sql` changed, **run it again** in Supabase > SQL Editor. It is safe to re-run. This release changed it: player-card visibility (friends and teammates by default), hidden search for under-18s, private message threads, and the `delete_my_account` function behind the Delete my account button.
+
+## Adding a language
+
+Copy `js/i18n-fr.js` to `js/i18n-xx.js`, translate the values, load it in `index.html` before `js/i18n.js`, and add a `data-lang-set="xx"` button in Profile > Appearance and language. Phrases containing numbers are handled by the patterns in `js/i18n.js`.
+
 ## Security notes
 
 - Only the **publishable/anon** key belongs in `js/config.js`. Never commit the `service_role` or secret key.
+- Children under 13 can use the app on their device but cannot create an account or use Squad. Players under 18 are only visible to friends and teammates. Check this against the rules where you operate; it is not legal advice.
 - The row level security rules in `supabase/schema.sql` make sure each person can only change their own data.

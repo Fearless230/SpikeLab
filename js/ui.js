@@ -6,7 +6,7 @@ const MI=window.VB_MUSCLE_INFO||{},CH=window.VB_CHAINS||{},EXS=window.VB_EXERCIS
 const T=Object.fromEntries(TECHS.map(t=>[t.id,t]));
 const XD=window.VB_EX_DETAIL||{},MM=window.VB_MUSCLE_MORE||{},PG=window.VB_PROGRAMS||{},GD=window.VB_GUIDE||{};
 const S=()=>VB.state;
-VB.ui={};
+VB.ui={};VB.ui.readItem=(el,it)=>readItem(el,it);
 const THEMES={
  outside:{c:"#ec3b52",rgb:"236,59,82",ink:"#ffffff",t:["Own","the pin"],line:"Pass it. Hit it. Carry the rotation."},
  opposite:{c:"#f5a524",rgb:"245,165,36",ink:"#17144d",t:["Bring","the heat"],line:"Right side. Big swings. Bigger blocks."},
@@ -94,7 +94,7 @@ let LP=null;function lookPreview(){const cv=$("#lookPrev");if(!cv||!VB.GL||!VB.A
   root.add(pl.root);LP.R.render({root,clear:[0,0,0,0],light:{sky:[.8,.78,1],gnd:[.15,.1,.3],d1:[.4,1,.8],c1:[1,.96,.92],d2:[-.6,.3,-.6],c2:[.5,.35,1],rim:[.7,.5,1]}},{fov:26,pos:[3.6,1.55,2.4],target:[0,1.02,0],near:.1,far:20});}catch(e){}}
 form.addEventListener("change",e=>{if(/^(lskin|lhair|lstyle)$/.test(e.target.name)||e.target.id==="p-hand"||e.target.id==="p-number")lookPreview();});
 function stepErrors(step,p){const m=[];
-  if(step===0||step==null){if(!p.height||p.height<100||p.height>230)m.push("height");if(!p.weight)m.push("weight");}
+  if(step===0||step==null){if(p.age==null||p.age<8||p.age>90)m.push("age");if(!p.height||p.height<100||p.height>230)m.push("height");if(!p.weight)m.push("weight");}
   if(step===1||step==null){if(!p.exp)m.push("experience");if(!p.pos)m.push("position");if(p.jump!=null&&(p.jump<3||p.jump>130))m.push("vertical jump (between "+VB.lenOut(3)+" and "+VB.lenOut(130)+" "+VB.lu()+")");if(p.reach!=null&&(p.reach<140||p.reach>330))m.push("standing reach (between "+VB.lenOut(140)+" and "+VB.lenOut(330)+" "+VB.lu()+")");}return m;}
 function wizShow(){const wiz=!S().profile;form.className="wiz "+(wiz?"steps":"all");
   $$("fieldset",form).forEach(f=>f.hidden=wiz&&+f.dataset.step!==wizStep);
@@ -140,7 +140,7 @@ function itemHTML(it,done){const d=done[it.key];
     <div class="why">${esc(it.why)}</div>
     <div class="ins" data-ins>Score <input type="number" min="0" max="${dr.score.attempts}" value="${d?d.suc:""}" data-f="suc" aria-label="Your score" placeholder="0"> / ${dr.score.attempts} <span>standard ${dr.score.target} · ${esc(dr.score.label)}</span></div>
     <details><summary>How to run it</summary><p class="small" style="margin-top:6px">${esc(dr.setup)}</p><ol class="steps small">${dr.run.map(r=>`<li>${esc(r)}</li>`).join("")}</ol><p class="small" style="margin-top:6px"><button type="button" class="linkbtn" data-drill="${dr.id}">Open the 3D diagram and coaching cues</button></p></details></div></div>`;}
-function exHow(e){const d=XD[e.id],big=VB.exMotion&&VB.exMotion.has(e.id)?`<div class="mobig">${VB.exMotion.html(e.id,"big",220)}<p class="small muted">Coral marks the muscles doing the work. The dotted line traces the path of the moving part.</p></div>`:"";if(!d)return big+`<p class="small" style="margin-top:6px">${esc(e.cue)}</p>`;
+function exHow(e){const d=XD[e.id],big=VB.exMotion&&VB.exMotion.has(e.id)?`<div class="mobig">${VB.demo3d?VB.demo3d.block(e.id,220):VB.exMotion.html(e.id,"big",220)}<p class="small muted">Coral marks the muscles doing the work. The dotted line traces the path of the moving part.</p></div>`:"";if(!d)return big+`<p class="small" style="margin-top:6px">${esc(e.cue)}</p>`;
   return `<div class="howto">${big}<p>${esc(d.setup)}</p><ol class="steps">${d.steps.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>
    <div class="g2"><div><div class="grp">Watch for</div><ul class="plain">${d.errors.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
    <div><div class="grp">You should feel</div><p>${esc(d.feel)}</p>${d.tempo?`<div class="grp" style="margin-top:8px">Tempo and rest</div><p>${esc(d.tempo)}</p>`:""}<div class="grp" style="margin-top:8px">On court</div><p>${esc(d.court)}</p></div></div></div>`;}
@@ -260,7 +260,8 @@ function renderSkills(){const lefty=S().profile&&S().profile.hand==="left";
     const t=T[curTech]||TECHS[0],st=S().tech[t.id]||"none",sk=t.skill||VB.TECH_SKILL[t.id],drills=DRS.filter(d=>d.skill===sk&&(!S().profile||VB.drillFits(d))).slice(0,4);
     $("#skillDetail").innerHTML=`<div class="stat">${t.kind} · ${t.level} · ${VB.SKILLS[t.skill]||""}</div><h2>${esc(t.name)}</h2><p>${esc(t.sum)}</p>${t.why?`<p class="muted small">${esc(t.why)}</p>`:""}
      ${t.cues?`<div class="cues">${t.cues.map(c=>`<span>${esc(c)}</span>`).join("")}</div>`:""}
-     <div class="stack" style="gap:12px">${(t.phases||[]).map((ph,i)=>`<div class="phase"><b>${i+1} · ${esc(ph.name)}</b>${ph.points.filter(x=>lefty||!/^Left-handers:/.test(x)).map(x=>`<span class="small">${esc(x)}</span>`).join("")}</div>`).join("")}</div>
+     <div class="stack phases" style="gap:12px" data-open="false">${(t.phases||[]).map((ph,i)=>`<div class="phase"><b>${i+1} · ${esc(ph.name)}</b>${ph.points.filter(x=>lefty||!/^Left-handers:/.test(x)).map((x,k)=>`<span class="small${k?" more":""}">${esc(x)}</span>`).join("")}</div>`).join("")}
+     <button type="button" class="btn sm" data-allcues aria-expanded="false">Show all coaching points</button></div>
      <div><div class="grp">Common errors and the fix</div>${(t.errors||[]).map(x=>`<div class="errrow"><b>${esc(x.error)}</b><span class="small muted">${esc(x.why||"")}</span><i class="small">${esc(x.fix)}</i></div>`).join("")}</div>
      <div class="rec"><span class="grp">Objective</span><span>${esc(t.target)}</span></div>
      ${drills.length?`<div><div class="grp">Drills for this</div><p class="small">${drills.map(d=>`<button type="button" class="linkbtn" data-drill="${d.id}">${esc(d.name)}</button>`).join(" · ")}</p></div>`:""}
