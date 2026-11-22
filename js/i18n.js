@@ -11,6 +11,12 @@ const SK={Passing:"Réception",Setting:"Passe",Serving:"Service",Attacking:"Atta
 const P=s=>D[s]||s;
 /* patterns: [regex, (match groups) => French] */
 const RULES=[
+ [/^(\d+) muscles · (\d+) exercises · (\d+) drills · (\d+) faults tracked$/,m=>`${m[1]} muscles · ${m[2]} exercices · ${m[3]} ateliers · ${m[4]} erreurs suivies`],[/^(\d+) techniques · (\d+) drills · (\d+) levels$/,m=>`${m[1]} techniques · ${m[2]} ateliers · ${m[3]} niveaux`],
+ [/^Tracked automatically on (\d+) frames \((\d+) per second(.*?)\)(.*)$/,m=>`Suivi automatique sur ${m[1]} images (${m[2]} par seconde${m[3].replace(", slow motion ×",", ralenti ×").replace(", tracking confidence "," , confiance du suivi ")})${m[4].replace(" Take-off at "," Décollage à ").replace(", landing at ",", réception à ")}`],
+ [/^You fill (\d+)% of the frame height$/,m=>`Vous occupez ${m[1]} % de la hauteur de l'image`],[/^Frame rate (\d+) per second$/,m=>`Fréquence ${m[1]} images par seconde`],[/^Tracking confidence (\d+)%$/,m=>`Confiance du suivi ${m[1]} %`],
+ [/^Tracking your body, (\d+)%$/,m=>`Suivi du corps, ${m[1]} %`],[/^Recording… (\d+)%$/,m=>`Enregistrement… ${m[1]} %`],
+ [/^(\d+) swings?$/,m=>`${m[1]} frappe${m[1]==="1"?"":"s"}`],[/^(\d+) serves?$/,m=>`${m[1]} service${m[1]==="1"?"":"s"}`],[/^History$/,()=>"Historique"],[/^(\d+) sessions?$/,m=>`${m[1]} séance${m[1]==="1"?"":"s"}`],
+ [/^Your reflections$/,()=>"Vos bilans"],[/^Reaction test$/,()=>"Test de réaction"],[/^(\d+) clips? kept on this device(.*)$/,m=>`${m[1]} vidéo${m[1]==="1"?"":"s"} gardée${m[1]==="1"?"":"s"} sur cet appareil${m[2].replace(" MB used"," Mo utilisés").replace("They never leave this device."," Elles ne quittent jamais cet appareil.")}`],
  [/^Session (\d+) is ready: about (\d+) minutes, (\d+) items\. ?(.*)$/,m=>`La séance ${m[1]} est prête : environ ${m[2]} minutes, ${m[3]} éléments. ${tr(m[4])||m[4]}`],
  [/^(\w+), session (\d+) is ready: about (\d+) minutes, (\d+) items\. ?(.*)$/,m=>`${m[1]}, la séance ${m[2]} est prête : environ ${m[3]} minutes, ${m[4]} éléments. ${tr(m[5])||m[5]}`],
  [/^Finish · (\d+) of (\d+) done$/,m=>`Terminer · ${m[1]} sur ${m[2]} faits`],[/^(\d+) of (\d+) done$/,m=>`${m[1]} sur ${m[2]} faits`],[/^of (\d+) done$/,m=>`sur ${m[1]} faits`],

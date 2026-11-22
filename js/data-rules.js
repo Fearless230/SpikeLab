@@ -1,4 +1,4 @@
-/* data-rules.js: the Rules and terms tool (#tools/rules). Replaces the short rule list in data-v5.js.
+/* data-rules.js: the Rules and terms tool (#tools/rules). Replaces the short rule list in data-extras.js.
    Based on the FIVB Official Volleyball Rules 2025-2028. Where USA Volleyball (2025-2027 rulebook), school or college rules
    differ in ways players meet often, the rule says so. Leagues change details: the league's own rulebook decides. */
 (function(){
@@ -150,7 +150,7 @@ window.VB_FORMATS={cols:["Indoor","Beach","Sitting"],rows:[
  ["Specialist","Libero","None","Libero"],
  ["Special rule","Back-row attack line","No centre line: you may cross under the net if you don't interfere","Part of the body between the shoulders and buttocks must touch the floor when playing the ball"]]};
 
-/* more terms: added to the glossary in data-v5.js, sorted together */
+/* more terms: added to the glossary in data-extras.js, sorted together */
 const more=[
  ["31","A quick attack 2 to 3 m in front of the setter, between the setter and the left antenna."],
  ["Back 1","A quick set just behind the setter."],

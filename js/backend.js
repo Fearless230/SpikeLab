@@ -37,7 +37,7 @@ function user(){const u=session.user,meta=u.user_metadata||{};
   return {
     async id(){return uid();},
     async me(){return {id:u.id,name:meta.name||(u.email||"").split("@")[0],email:u.email,avatarUrl:meta.avatar_url||null};},
-    async profiles(ids){const out={};if(!ids||!ids.length)return out;const {data}=await sb.from("profiles").select("id,name,avatar_url").in("id",ids);(data||[]).forEach(p=>out[p.id]={name:p.name,avatarUrl:p.avatar_url||null});return out;},
+    async profiles(ids){const out={};if(!ids||!ids.length)return out;const {data}=await sb.from("profiles").select("id,name,avatar_url").in("id",ids);(data||[]).forEach(p=>out[p.id]={name:typeof p.name==="string"?p.name.slice(0,60):"",avatarUrl:(VB.safeImg&&VB.safeImg(p.avatar_url))||null});return out;},
     async search(q){q=(q||"").trim();if(q.length<2)return [];const {data,error}=await sb.rpc("find_players",{q});if(error)throw error;return (data||[]).map(r=>({id:r.id,name:r.name,email:r.email||""}));}};}
 async function saveProfileRow(){const u=session.user,meta=u.user_metadata||{};const minor=!!(VB.minor&&VB.minor());try{await sb.from("profiles").upsert({id:u.id,name:meta.name||(u.email||"").split("@")[0],minor,updated_at:new Date().toISOString()});}catch(e){}}
 
@@ -63,7 +63,7 @@ function show(m,msg,kind){mode=m||mode;if(!box){const st=document.createElement(
     ${mode==="up"?`<label>Name<input name="name" autocomplete="name" required maxlength="40"></label>`:""}
     ${mode==="in"||mode==="up"||mode==="reset"?`<label>Email<input name="email" type="email" autocomplete="email" required></label>`:""}
     ${mode==="in"||mode==="up"||mode==="newpw"?`<label>Password<input name="pw" type="password" autocomplete="${mode==="in"?"current-password":"new-password"}" minlength="6" required></label>`:""}
-    ${mode==="up"?`<label class="chk"><span><input type="checkbox" name="age13"> I am 13 or older</span><small>Under 13? Choose "Continue without an account" below: everything still works and stays on this device.</small></label>`:""}
+    ${mode==="up"?`<label class="chk"><span><input type="checkbox" name="age12"> I am 12 or older</span><small>Under 12? Choose "Continue without an account" below: everything still works and stays on this device.</small></label><label class="chk"><span><input type="checkbox" name="guardian"> If I am 12 or 13, a parent or guardian has agreed to this account</span><small>Squad (friends, teams and chat) shares your card with people you add. A parent or guardian should know about that.</small></label>`:""}
     <div class="msg ${kind||""}" role="status" aria-live="polite">${msg||""}</div>
     ${mode!=="check"?`<button class="go" type="submit">${{in:"Log in",up:"Create account",reset:"Send reset link",newpw:"Save password"}[mode]}</button>`:`<button class="go" type="button" data-m="in">Back to log in</button>`}
     <div class="row">${mode==="in"?`<button type="button" class="lnk" data-m="up">New here? Create an account</button><button type="button" class="lnk" data-m="reset">Forgot password?</button>`:mode==="newpw"||mode==="check"?"":`<button type="button" class="lnk" data-m="in">I already have an account</button>`}</div>
@@ -76,11 +76,12 @@ async function submit(e){e.preventDefault();const f=e.target,v=n=>(f.elements[n]
   if(mode!=="newpw"&&v("email")&&!/^\S+@\S+\.\S+$/.test(v("email")))return say("Enter a valid email address.");
   if((mode==="in"||mode==="up"||mode==="newpw")&&(f.elements.pw.value||"").length<6)return say("Use at least 6 characters for the password.");
   if(mode==="up"&&!v("name"))return say("Add your name so friends can find you.");
-  if(mode==="up"&&!f.elements.age13.checked)return say("Accounts are for players 13 and older. Use \"Continue without an account\" instead.");
+  if(mode==="up"&&!f.elements.age12.checked)return say("Accounts are for players 12 and older. Use \"Continue without an account\" instead.");
+  {const a=VB.ageOf&&VB.ageOf();if(mode==="up"&&a!=null&&a<14&&!f.elements.guardian.checked)return say("Players aged 12 and 13 need a parent or guardian to agree first. Tick the second box once they have.");}
   go.disabled=true;say("Working…","ok");
   try{
     if(mode==="in"){const {error}=await sb.auth.signInWithPassword({email:v("email"),password:f.elements.pw.value});if(error)throw error;}
-    else if(mode==="up"){const {data,error}=await sb.auth.signUp({email:v("email"),password:f.elements.pw.value,options:{data:{name:v("name")},emailRedirectTo:site()}});if(error)throw error;if(!data.session){show("check");return;}}
+    else if(mode==="up"){const {data,error}=await sb.auth.signUp({email:v("email"),password:f.elements.pw.value,options:{data:{name:v("name"),guardian_ok:!!f.elements.guardian.checked,signup_age_ok:true},emailRedirectTo:site()}});if(error)throw error;if(!data.session){show("check");return;}}
     else if(mode==="reset"){const {error}=await sb.auth.resetPasswordForEmail(v("email"),{redirectTo:site()});if(error)throw error;say("If that email has an account, a reset link is on its way.","ok");go.disabled=false;return;}
     else if(mode==="newpw"){const {error}=await sb.auth.updateUser({password:f.elements.pw.value});if(error)throw error;hide();toast("Password updated.");}
   }catch(err){go.disabled=false;const m=(err&&err.message)||"Something went wrong. Try again.";say(/invalid login/i.test(m)?"Email or password is wrong.":/not confirmed/i.test(m)?"Confirm your email first: open the link we sent you.":/rate limit/i.test(m)?"Too many tries. Wait a minute and try again.":m);}}
@@ -91,7 +92,7 @@ function acctBar(){const host=document.getElementById("v-profile");if(!host)retu
   el.innerHTML=`<span>Signed in as <b>${(session.user.email||"").replace(/</g,"&lt;")}</b></span><button type="button" data-out="1">Log out</button>`;}
 
 /* ---------- boot: load the Supabase library, then restore the session or ask to log in ---------- */
-function boot(){const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";s.async=true;
+function boot(){const s=document.createElement("script");s.src="js/vendor/supabase-2.119.2.js";  // a pinned copy kept in the repo: no outside code can change under yous.async=true;
   s.onload=start;s.onerror=()=>{console.warn("Could not load Supabase. Saving stays on this device.");decide(false);};document.head.appendChild(s);}
 async function start(){sb=window.supabase.createClient(C.supabaseUrl,C.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   // Supabase asks that no other Supabase calls run inside this callback, so the follow-up work is deferred

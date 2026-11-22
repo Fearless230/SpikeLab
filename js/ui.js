@@ -210,7 +210,7 @@ $("#todayMain").addEventListener("submit",e=>{if(e.target.id!=="finForm")return;
 /* ---------- body ---------- */
 let action="overall",activeM=null,prevTier=null;
 const colorFn=id=>({p:VB.musclePrio(id,action),sel:S().muscles.includes(id)});
-function bars(p){const n=Math.round(p);return `<span class="bar5" aria-label="Priority ${n} of 5">${[1,2,3,4,5].map(i=>`<i class="${i<=n?"f":""}"></i>`).join("")}</span>`;}
+function bars(p){const n=Math.round(p);return `<span class="bar5" role="img" aria-label="Priority ${n} of 5">${[1,2,3,4,5].map(i=>`<i class="${i<=n?"f":""}"></i>`).join("")}</span>`;}
 function renderBody(){
   $("#actChips").innerHTML=VB.ACTIONS.map(([k,l])=>`<button type="button" class="chip" data-a="${k}" aria-pressed="${k===action}">${k==="overall"&&S().profile?"My position":l}</button>`).join("");
   const rank=VB.rankMuscles(action);if(!activeM)activeM=rank[0].id;

@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Content Security Policy: only this site and Supabase may load code or data (fonts, libraries and the pose model are all self-hosted).
+     tools/release.mjs keeps the hash of the inline theme script below up to date. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-o7npUKTMHYnCJY0olBORl3CJMSUG7TaA+52BnbOLNUk=' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <script>(function(){try{var t=localStorage.getItem("vbj-theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var l=localStorage.getItem("vbj-lang");if(l)document.documentElement.lang=l;}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0a0f">
@@ -18,8 +21,9 @@
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="VB Journey">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/barlow-condensed-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/fonts.css">
 <style>
 :root{
   /* one committed world: an athlete's personal site at night. Near-black ground, bone-white type, one gold accent
@@ -856,7 +860,7 @@ h2 .o{display:inline-block;will-change:transform}
 /* locker */
 .locker{margin:40px 0 20px;display:flex;flex-direction:column;gap:18px}
 .lhead{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-end}.lhead>div:first-child{max-width:60ch;display:flex;flex-direction:column;gap:8px}
-.lstats{display:flex;gap:4px}.lstats div{background:var(--navy);color:#fff;padding:12px 18px;display:flex;flex-direction:column;clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%)}.lstats b{font:800 2rem/1 "Barlow Condensed",sans-serif}.lstats span{font:700 .72rem "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--coral)}
+.lstats{display:flex;gap:4px;flex-wrap:wrap}.lstats div{background:var(--navy);color:#fff;padding:12px 18px;display:flex;flex-direction:column;clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%)}.lstats b{font:800 2rem/1 "Barlow Condensed",sans-serif}.lstats span{font:700 .72rem "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--coral)}
 .lgrid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:18px;align-items:stretch}@media (max-width:900px){.lgrid{grid-template-columns:1fr}}
 .lprev{position:relative;background:radial-gradient(circle at 50% 35%,#3b2fb0,#17144d 70%);min-height:440px;clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),calc(100% - 30px) 100%,0 100%);display:flex;align-items:flex-end;justify-content:center;padding:14px}
 .lprev .lpc,.lprev .lpc canvas{position:absolute;inset:0;width:100%;height:100%}.lprev span{position:relative;color:#fff;font:700 .85rem "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.08em;background:rgba(0,0,0,.35);padding:4px 12px}
@@ -922,8 +926,8 @@ h2 .o{display:inline-block;will-change:transform}
 @media (max-width:560px){.item.hasmo{grid-template-columns:40px minmax(0,1fr) 64px}.item .mo .exmo{width:64px!important;height:64px!important}.mobig{flex-direction:column;align-items:flex-start}.mobig .exmo{width:200px!important;height:200px!important}}
 @media (prefers-reduced-motion:reduce){.molbl{display:none}}
 </style>
-<link rel="stylesheet" href="css/v3.css">
-<link rel="stylesheet" href="css/v5.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/home-toolkit.css">
 </head>
 <body>
 <div class="loader" id="loader" aria-hidden="true"><div class="ldtag"><span class="o">Push</span><span>your limits</span></div><div class="ldbrand"><svg class="ldball" viewBox="-25 -25 50 50" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round"><circle class="lc" pathLength="1" r="21"/><g class="ls ls1"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls2" transform="rotate(120)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g><g class="ls ls3" transform="rotate(240)"><path pathLength="1" d="M0 0C5.9-5.9 8-13.9 4-21"/><path pathLength="1" d="M-5-2.1C1-8.8 1.7-15.1-2.9-20.4"/></g></g></svg><div class="ldword"><span>Volleyball</span><span>Training Journey</span></div></div></div>
@@ -1143,7 +1147,7 @@ h2 .o{display:inline-block;will-change:transform}
         <p class="err" id="oerr" role="alert" hidden></p>
         <div class="row"><button class="btn primary" type="submit">Save</button></div>
       </form>
-      <div class="card"><div class="row" style="justify-content:space-between"><h3>Session history</h3><button class="btn sm" id="copyCsv" type="button">Copy as CSV</button></div><div class="tablewrap"><table id="stable"></table></div></div>
+      <div class="card"><div class="row" style="justify-content:space-between"><h3>Session history</h3><button class="btn sm" id="copyCsv" type="button">Copy as CSV</button></div><div class="tablewrap" tabindex="0" role="region" aria-label="Session history table"><table id="stable" tabindex="0"></table></div></div>
     </div>
   </div></div>
 </section>
@@ -1151,9 +1155,9 @@ h2 .o{display:inline-block;will-change:transform}
 <!-- TOOLS -->
 <section class="view" id="v-tools" hidden>
   <div class="wrap section"><div class="stack" style="gap:8px;margin-bottom:20px;max-width:64ch">
-    <div class="stat">Timer · match stats · rotations · plays · calculators · rules</div>
+    <div class="stat">Courtside toolkit · 10 tools</div>
     <h2><span class="o">The bag</span><span>you bring to every gym</span></h2>
-    <p class="muted">Courtside tools that work offline: an interval timer with beeps, a live match stat tracker, a rotation viewer for 5-1, 6-2 and 4-2 with animated switches, receive formations and an overlap quiz, a library of plays and defences, calculators for touch, jump and ratings, and the rules in plain words with referee signals and a quiz.</p></div>
+    <p class="muted">Timers, live match stats, rotations and plays, calculators, the rules in plain words, and new: a swing counter for your shoulder, serve target practice, reaction drills and a mindset kit.</p></div>
   <div id="toolsRoot"></div></div>
 </section>
 
@@ -1248,7 +1252,7 @@ h2 .o{display:inline-block;will-change:transform}
 <div class="modal" id="modal" hidden><div class="mbox" role="dialog" aria-modal="true" aria-label="Dialog"><button type="button" class="mclose" aria-label="Close">×</button><div id="mbody"></div></div></div>
 <div class="toast" id="toast" hidden role="status"><span id="toastMsg"></span><button id="toastUndo" hidden>Undo</button></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="js/vendor/chart-4.4.1.umd.js"></script>
 <script src="js/icons.js"></script>
 <script src="js/i18n-fr.js"></script>
 <script src="js/i18n.js"></script>
@@ -1259,12 +1263,13 @@ h2 .o{display:inline-block;will-change:transform}
 <script src="js/player-data.js"></script>
 <script src="js/data-drills.js"></script>
 <script src="js/data-offcourt.js"></script>
-<script src="js/data-v5.js"></script>
+<script src="js/data-extras.js"></script>
 <script src="js/data-rules.js"></script>
 <script src="js/data-plays.js"></script>
 <script src="js/data-tech.js"></script>
 <script src="js/data-tech-more.js"></script>
 <script src="js/data-posprog.js"></script>
+<script src="js/i18n-fr-content.js"></script>
 <script src="js/config.js"></script>
 <script src="js/backend.js"></script>
 <script src="js/core.js"></script>
@@ -1277,6 +1282,8 @@ h2 .o{display:inline-block;will-change:transform}
 <script src="js/demo3d.js"></script>
 <script src="js/body3d.js"></script>
 <script src="js/court3d.js"></script>
+<script src="js/clips.js"></script>
+<script src="js/film-pose.js"></script>
 <script src="js/film.js"></script>
 <script src="js/qr.js"></script>
 <script src="js/hero.js"></script>
@@ -1284,10 +1291,12 @@ h2 .o{display:inline-block;will-change:transform}
 <script src="js/squad.js"></script>
 <script src="js/profile.js"></script>
 <script src="js/ui.js"></script>
-<script src="js/v3.js"></script>
-<script src="js/v4.js"></script>
-<script src="js/v5-home.js"></script>
-<script src="js/v5-tools.js"></script>
-<script src="js/v6-calendar.js"></script>
+<script src="js/app-features.js"></script>
+<script src="js/week-gameday.js"></script>
+<script src="js/home.js"></script>
+<script src="js/toolkit.js"></script>
+<script src="js/toolkit-plus.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/team-plus.js"></script>
 </body>
 </html>

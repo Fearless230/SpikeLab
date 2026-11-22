@@ -24,7 +24,7 @@ VB.loadMediaCloud=async function(){if(!VB.net)return;try{const s=await VB.net.db
 VB.myAccent=()=>VB.media.accent||((VB.THEMES||{})[(VB.state.profile&&VB.state.profile.pos)||"any"]||{c:"#d8b25a"}).c;
 const others={};
 VB.mediaOf=function(id){if(!id)return Promise.resolve(null);if(VB.net&&id===VB.net.uid)return Promise.resolve(VB.media);
-  if(!others[id])others[id]=VB.net?VB.net.db.doc("players/"+id+"/media/img").get().then(s=>s.exists?s.data():null).catch(()=>null):Promise.resolve(null);return others[id];};
+  if(!others[id])others[id]=VB.net?VB.net.db.doc("players/"+id+"/media/img").get().then(s=>s.exists?VB.cleanMedia(s.data()):null).catch(()=>null):Promise.resolve(null);return others[id];};
 VB.mediaForget=id=>{delete others[id];};
 
 /* ---------- image helpers ---------- */
@@ -204,7 +204,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#modal").hidden
 
 /* ---------- scanning ---------- */
 let jsqrP=null;
-function loadJsQR(){if(window.jsQR)return Promise.resolve(window.jsQR);if(!jsqrP)jsqrP=new Promise(res=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";s.onload=()=>res(window.jsQR||null);s.onerror=()=>res(null);document.head.appendChild(s);});return jsqrP;}
+function loadJsQR(){if(window.jsQR)return Promise.resolve(window.jsQR);if(!jsqrP)jsqrP=new Promise(res=>{const s=document.createElement("script");s.src="js/vendor/jsqr-1.4.0.js";s.onload=()=>res(window.jsQR||null);s.onerror=()=>res(null);document.head.appendChild(s);});return jsqrP;}
 async function decodeImage(im){if("BarcodeDetector" in window){try{const bd=new window.BarcodeDetector({formats:["qr_code"]}),r=await bd.detect(im);if(r&&r[0])return r[0].rawValue;}catch(e){}}
   const jq=await loadJsQR();if(!jq)return null;for(const M of [1000,640,1400]){const sc=Math.min(1,M/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);const g=c.getContext("2d",{willReadFrequently:true});g.drawImage(im,0,0,c.width,c.height);
     const r=jq(g.getImageData(0,0,c.width,c.height).data,c.width,c.height);if(r&&r.data)return r.data;}return null;}
@@ -219,11 +219,11 @@ VB.openScanner=function(){modal(`<div class="mhead"><div class="stat">Squad</div
       if(id)VB.openPlayer(id);else msg(txt?"That code is not a player card from this page.":"No code found. Fill the frame with the code, hold steady, and try again.");}catch(err){msg("That file could not be opened as a photo.");}};
   $("#scFile").addEventListener("change",onFile);$("#scFile2").addEventListener("change",onFile);
   $("#scGo").addEventListener("click",()=>{const id=idFromText($("#scLink").value);if(id)VB.openPlayer(id);else msg("That link is not a player card link. It should end with #p- and a code.");});};
-VB.openPlayer=async function(id){if(!id)return;const mine=VB.net&&id===VB.net.uid;
+VB.openPlayer=async function(id){id=VB.safeUid(id);if(!id)return;const mine=VB.net&&id===VB.net.uid;
   const body=modal(`<div class="pmodal"><div id="pmCard" class="cardhost"><div class="card"><p class="muted">Loading the card.</p></div></div><div class="stack" id="pmSide" style="gap:12px"></div></div>`,"wide");
   if(mine){VB.renderCard($("#pmCard"),VB.myCard());$("#pmSide").innerHTML=`<div class="stat">This is you</div><h3>Your player card</h3><p class="small muted">This is what teammates see when they scan your code.</p><a class="btn" href="#profile" data-close>Go to my profile</a>`;return;}
   if(!VB.net){$("#pmCard").innerHTML=`<div class="card"><p>Open this page inside Claude while signed in to see other players' cards.</p></div>`;return;}
-  let doc=null;try{const s=await VB.net.db.doc("players/"+id).get();doc=s.exists?s.data():null;}catch(e){}
+  let doc=null;try{const s=await VB.net.db.doc("players/"+id).get();doc=s.exists?VB.cleanCard(s.data()):null;}catch(e){}
   if(!doc){$("#pmCard").innerHTML=`<div class="card"><h3>Card not found</h3><p class="small muted">This player has removed their card, or the code is from a page you cannot open.</p></div>`;return;}
   const md=await VB.mediaOf(id)||{};const d={uid:id,nick:doc.nick,number:doc.number,pos:doc.pos,exp:doc.exp,look:doc.look||null,hand:doc.hand||"right",stats:doc.stats||{},pfp:md.pfp,bg:md.bg,accent:md.accent};
   VB.renderCard($("#pmCard"),d);const cp=VB.compat((VB.state.profile||{}).pos,doc.pos),rel=VB.squad.relation(id);

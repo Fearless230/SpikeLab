@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Film benchmark renderer</title>
+<style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script src="../../js/player-data.js"></script>
+<script src="../../js/gl.js"></script>
+<script src="../../js/athlete.js"></script>
+<script src="../../js/locker.js"></script>
+<script>
+/* Renders the app's 3D player with a fixed camera, like a phone on a tripod, so the Film analysis can be tested
+   against known answers. ?clip=block&view=side|front&w=960&h=540&dist=5.5&camh=1.0&x=0
+   window.frame(t) poses the player at time t, renders, and returns the true 2D joint positions in pixels. */
+(function(){
+const q=new URLSearchParams(location.search),G=VB.GL,W=+q.get("w")||960,H=+q.get("h")||540;
+const cv=document.getElementById("c"),R=G.renderer(cv,{preserve:true});R.setSize(W,H,1);
+const scene={root:new G.Node(),clear:[.82,.8,.76,1],light:{sky:"#dfe3f0",gnd:"#7a6a55",d1:[.5,1,.6],c1:"#fff4e6",d2:[-.6,.4,-.5],c2:"#8890b0",rim:"#ffffff"},shadow:{dir:[.3,1,.25],opacity:.35},exposure:1.0};
+const floor=new G.Node(G.plane(60,60),G.mat({color:"#c98a52",rough:.8}));scene.root.add(floor);
+const wall=new G.Node(G.box(60,8,.2),G.mat({color:"#e7e2d8",rough:.9}));wall.pos=[0,4,-7];scene.root.add(wall);
+[[0,.06],[-3,.05],[3,.05],[-9,.05]].forEach(([x,w])=>{const n=new G.Node(G.plane(w,9),G.mat({color:"#ffffff",unlit:true}));n.pos=[x,.003,0];scene.root.add(n);});
+const clipName=q.get("clip")||"block",lefty=q.get("lefty")==="1";
+const look=Object.assign(VB.lookOpts(JSON.parse(q.get("look")||"{}")),{jersey:q.get("jersey")||"#1f4fae",number:7,lefty,clip:clipName,ball:q.get("ball")!=="0"});
+const pl=VB.Athlete.player(Object.assign({natural:true},look));pl.root.pos=[+q.get("x")||0,0,0];scene.root.add(pl.root);
+const v=q.get("view")||"side",d=+q.get("dist")||5.5,ch=+q.get("camh")||1.0,tx=+q.get("tx")||0;
+const dir={side:[0,0,1],front:[1,0,0],three:[.7,0,.7]}[v];
+const cam={fov:+q.get("fov")||40,pos:[tx+dir[0]*d,ch,dir[2]*d],target:[tx,ch,0]};
+const BI=VB.Athlete.BI,S=lefty?"L":"R";
+/* the near side to a side camera at +z is the player's right (+z); the far side is used for a front view's left */
+const J={head:"head",shoulder:"upperarm."+S,elbow:"forearm."+S,wrist:"hand."+S,hip:"thigh."+S,knee:"shin."+S,ankle:"foot."+S,toe:"toe."+S,
+  l_shoulder:"upperarm.L",r_shoulder:"upperarm.R",l_hip:"thigh.L",r_hip:"thigh.R",l_knee:"shin.L",r_knee:"shin.R",l_ankle:"foot.L",r_ankle:"foot.R"};
+function project(p){const m=cam.vp,x=m[0]*p[0]+m[4]*p[1]+m[8]*p[2]+m[12],y=m[1]*p[0]+m[5]*p[1]+m[9]*p[2]+m[13],w=m[3]*p[0]+m[7]*p[1]+m[11]*p[2]+m[15];return [(x/w*.5+.5)*W,(1-(y/w*.5+.5))*H];}
+window.frame=function(t){pl.snap&&pl.snap();pl.t=t;pl.update(0);R.render(scene,cam);const Wp=pl.a.W.p,out={},M=pl.root.world||null;
+  for(const k in J){const i=BI[J[k]];let p=[Wp[i*3],Wp[i*3+1],Wp[i*3+2]];
+    /* bone positions are in the player's local space: apply the player's world matrix (it carries a scale) */
+    if(M)p=[M[0]*p[0]+M[4]*p[1]+M[8]*p[2]+M[12],M[1]*p[0]+M[5]*p[1]+M[9]*p[2]+M[13],M[2]*p[0]+M[6]*p[1]+M[10]*p[2]+M[14]];out[k]=project(p);}
+  return out;};
+window.info=function(){const c=VB.Athlete.CLIPS[clipName];return {dur:c.dur,tTO:c.tTO,tLand:c.tLand,contact:c.contact,W,H};};
+window.pl=pl;window.ready=true;
+})();
+</script></body></html>

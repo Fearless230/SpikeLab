@@ -38,13 +38,13 @@ function suggestDrills(skills,n,lvl){const cat=n<=1?0:n===2?1:n<=5?2:3;
 
 VB.squad=(function(){
   let tab="teams",selTeam=null,rot=1,thread=null,draft="",teamDraft=null,root,players={},profs={},me=null,status="wait",pushT=0,lastPush="",metric="vert",pick={friends:[],drills:null},filter="",medias={},mediaPushed=0,mediaAts={},rT=0;
-  const soc=()=>{const s=VB.state;if(!s.social||typeof s.social!=="object")s.social={};const o=s.social;o.friends=o.friends||[];o.shares=o.shares||[];o.meets=o.meets||[];o.rsvp=o.rsvp||{};o.teams=o.teams||[];o.msgs=o.msgs||[];o.seen=o.seen||{};return o;};
+  const soc=()=>{const s=VB.state;if(!s.social||typeof s.social!=="object")s.social={};const o=s.social;o.friends=o.friends||[];o.shares=o.shares||[];o.meets=o.meets||[];o.rsvp=o.rsvp||{};o.teams=o.teams||[];o.msgs=o.msgs||[];o.seen=o.seen||{};o.teamJoins=Array.isArray(o.teamJoins)?o.teamJoins:[];o.teamDeclines=Array.isArray(o.teamDeclines)?o.teamDeclines:[];return o;};
   const uid=()=>VB.net&&VB.net.uid;
   const POSL=p=>(VB.POS[p]||VB.POS.any).label;
   function stats(){const st=VB.state,from=VB.addDays(VB.today(),-28),T=st.tests.filter(t=>t.kind==="vert").sort((a,b)=>a.date<b.date?-1:1);let n=0,m=0;
     st.sessions.forEach(s=>{if(s.date>=from&&!s.ex){n++;m+=s.mins||0;}});const lv={};Object.entries(st.drill).forEach(([k,v])=>{if(v&&v.lvl)lv[k]=v.lvl;});
     return {vert:T.length?Math.round(T[T.length-1].cm*10)/10:null,best:T.length?Math.round(Math.max(...T.map(t=>t.cm))*10)/10:null,sess28:n,min28:m,streak:VB.streak(),lv,fixed:Object.values(st.faults).filter(f=>f&&!f.open).length,prog:VB.activeProgram().def.name};}
-  function card(){const p=VB.state.profile||{},o=soc();return {v:1,mediaAt:(VB.media&&(VB.media.pfp||VB.media.bg))?VB.media.at:0,nick:(p.name||"").slice(0,40),number:p.number==null?null:p.number,pos:p.pos||"any",exp:p.exp||"",look:p.look||null,hand:p.hand||"right",stats:stats(),friends:o.friends.slice(0,200),shares:o.shares.slice(0,20),meets:o.meets.slice(0,20),rsvp:o.rsvp,teams:o.teams.slice(0,6),adone:o.adone||{},msgs:threaded()?[]:o.msgs.slice(0,80),vis:VB.minor()?"friends":((VB.state.privacy||{}).cardVis||"friends"),minor:VB.minor()};}
+  function card(){const p=VB.state.profile||{},o=soc();return {v:1,mediaAt:(VB.media&&(VB.media.pfp||VB.media.bg))?VB.media.at:0,nick:(p.name||"").slice(0,40),number:p.number==null?null:p.number,pos:p.pos||"any",exp:p.exp||"",look:p.look||null,hand:p.hand||"right",stats:stats(),friends:o.friends.slice(0,200),shares:o.shares.slice(0,20),meets:o.meets.slice(0,20),rsvp:o.rsvp,teams:o.teams.slice(0,6),teamsJoined:o.teamJoins.slice(0,20),ready:VB.sharedReadiness?VB.sharedReadiness():null,teamStats:VB.sharedTeamStats?VB.sharedTeamStats():[],adone:o.adone||{},msgs:threaded()?[]:o.msgs.slice(0,80),vis:VB.minor()?"friends":((VB.state.privacy||{}).cardVis||"friends"),minor:VB.minor()};}
   function push(){if(!VB.net||!soc().joined)return;const c=card(),j=JSON.stringify(c);if(j===lastPush)return;lastPush=j;c.at=Date.now();
     VB.net.db.doc("players/"+uid()).set(c).catch(e=>{if(e&&e.code==="invalid_argument"){status="readonly";render();}});
     pushThreads();
@@ -60,18 +60,18 @@ VB.squad=(function(){
   function schedule(){clearTimeout(pushT);pushT=setTimeout(push,1200);}
   const nameOf=id=>{const c=players[id]||{},n=c.nick||(profs[id]&&profs[id].name)||"Player";return n+(c.number!=null?" · "+c.number:"");};
   function want(id){if(id in medias||!VB.mediaOf)return;medias[id]=null;VB.mediaOf(id).then(m=>{medias[id]=m||{};clearTimeout(rT);rT=setTimeout(render,120);});}
-  const avatar=id=>{want(id);const m=medias[id];if(m&&m.pfp)return `<img class="av" src="${m.pfp}" alt="">`;return profs[id]&&profs[id].avatarUrl?`<img class="av" src="${esc(profs[id].avatarUrl)}" alt="">`:`<span class="av"></span>`;};
+  const avatar=id=>{want(id);const m=medias[id];const pf=m&&VB.safeImg(m.pfp);if(pf)return `<img class="av" src="${esc(pf)}" alt="">`;return profs[id]&&profs[id].avatarUrl?`<img class="av" src="${esc(profs[id].avatarUrl)}" alt="">`:`<span class="av"></span>`;};
   const friendsOf=id=>(players[id]&&players[id].friends)||[];
   function rel(){const o=soc(),u=uid(),mutual=o.friends.filter(f=>players[f]&&friendsOf(f).includes(u));
     return {mutual,out:o.friends.filter(f=>!mutual.includes(f)),inc:Object.keys(players).filter(id=>id!==u&&friendsOf(id).includes(u)&&!o.friends.includes(id)),others:Object.keys(players).filter(id=>id!==u&&!o.friends.includes(id)&&!friendsOf(id).includes(u))};}
   async function connect(){if(!VB.net){status="off";render();return;}
     try{me=await VB.net.user.me();}catch(e){me=null;}
     status="on";render();
-    VB.net.db.collection("players").onSnapshot(async snap=>{const next={};snap.docs.forEach(d=>{const v=d.data();if(v)next[d.id]=v;});players=next;
+    VB.net.db.collection("players").onSnapshot(async snap=>{const next={};snap.docs.forEach(d=>{const id=VB.safeUid(d.id),v=id&&VB.cleanCard(d.data());if(v)next[id]=v;});players=next;
       Object.keys(players).forEach(id=>{const a=players[id].mediaAt||0;if(mediaAts[id]!==undefined&&mediaAts[id]!==a){VB.mediaForget&&VB.mediaForget(id);delete medias[id];}mediaAts[id]=a;});
       try{profs=await VB.net.user.profiles(Object.keys(players));}catch(e){}
       if(soc().joined&&uid()&&!players[uid()])schedule();render();},()=>{status="off";render();});
-    if(threaded()&&!inboxOff)inboxOff=VB.net.db.inbox.onSnapshot(list=>{inboxMsgs=[];list.forEach(d=>{if(d.from===uid()||!d.th)return;(d.msgs||[]).forEach(m=>{if(m&&m.th===d.th)inboxMsgs.push(Object.assign({},m,{from:d.from}));});});clearTimeout(rT);rT=setTimeout(render,120);});
+    if(threaded()&&!inboxOff)inboxOff=VB.net.db.inbox.onSnapshot(list=>{inboxMsgs=[];list.forEach(d=>{if(d.from===uid()||!d.th||!VB.safeUid(d.from))return;(Array.isArray(d.msgs)?d.msgs:[]).slice(0,80).forEach(m=>{if(m&&m.th===d.th)inboxMsgs.push({id:VB.safeId(m.id)||"x",th:m.th,text:VB.safeText(m.text,300),at:+m.at||0,from:d.from});});});clearTimeout(rT);rT=setTimeout(render,120);});
     if(soc().joined)schedule();}
   const lvlAvg=s=>{const v=Object.values((s&&s.lv)||{});return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length*10)/10:null;};
   const METRICS={vert:["Vertical jump",s=>s.vert,v=>VB.lenOut(v)+" "+VB.lu()],sess28:["Sessions, 28 days",s=>s.sess28,v=>v],min28:["Minutes, 28 days",s=>s.min28,v=>v],streak:["Week streak",s=>s.streak,v=>v],lvl:["Average drill level",lvlAvg,v=>v],fixed:["Faults fixed",s=>s.fixed,v=>v]};
@@ -81,7 +81,12 @@ VB.squad=(function(){
   const SLOTS=[["S","Setter","setter"],["OH1","Outside 1","outside"],["MB1","Middle 1","middle"],["OPP","Opposite","opposite"],["OH2","Outside 2","outside"],["MB2","Middle 2","middle"],["L","Libero","libero"]];
   const posOf=id=>id===uid()?(VB.state.profile||{}).pos:(players[id]||{}).pos;
   const membersOf=t=>[...SLOTS.map(x=>(t.slots||{})[x[0]]).filter(Boolean),...(t.subs||[])];
-  function allTeams(){const u=uid(),out=soc().teams.map(t=>({owner:u,t}));Object.keys(players).forEach(id=>{if(id===u)return;((players[id]||{}).teams||[]).forEach(t=>{if(t&&membersOf(t).includes(u))out.push({owner:id,t});});});return out;}
+  function listedTeams(){const u=uid(),out=[];Object.keys(players).forEach(id=>{if(id===u)return;((players[id]||{}).teams||[]).forEach(t=>{if(t&&t.id&&membersOf(t).includes(u))out.push({owner:id,t});});});return out;}
+  /* teams I am on: my own, plus teams someone added me to that I chose to join (the database only shows teammates after both sides agree) */
+  function allTeams(){const u=uid(),o=soc(),out=o.teams.map(t=>({owner:u,t}));listedTeams().forEach(x=>{if(o.teamJoins.includes(teamKey(x)))out.push(x);});return out;}
+  function teamInvites(){const o=soc();return listedTeams().filter(x=>!o.teamJoins.includes(teamKey(x))&&!o.teamDeclines.includes(teamKey(x)));}
+  /* has this player accepted my team yet? */
+  const hasJoined=(t,id)=>id===uid()||((players[id]||{}).teamsJoined||[]).includes(uid()+":"+t.id);
   function autoFill(ids){const slots={},left=ids.slice();SLOTS.forEach(([k,,want])=>{const i=left.findIndex(id=>posOf(id)===want);if(i>=0)slots[k]=left.splice(i,1)[0];});
     SLOTS.forEach(([k])=>{if(!slots[k]&&k!=="L"&&left.length)slots[k]=left.shift();});return {slots,subs:left.slice(0,8)};}
   const teamKey=x=>x.owner+":"+x.t.id;
@@ -95,7 +100,7 @@ VB.squad=(function(){
   const ago=t=>{const d=(Date.now()-t)/1000;return d<60?"now":d<3600?Math.round(d/60)+" min":d<86400?Math.round(d/3600)+" h":Math.round(d/86400)+" d";};
   function render(){if(!root)return;const st=VB.state,p=st.profile;if(!p){root.innerHTML="";return;}const o=soc(),u=uid();
     if(status==="wait"){root.innerHTML=`<div class="card"><p class="muted">Checking your account.</p></div>`;return;}
-    if(VB.child()){root.innerHTML=`<div class="card"><div class="kicker">Squad is for players 13 and older</div><p>Friends, teams and chat need an account, so they are switched off for players under 13. Your training plan, sessions and film all keep working, saved on this device.</p><p class="small muted">Ask your coach to share drills with you, or train together with a parent or guardian.</p></div>`;return;}
+    if(VB.child()){root.innerHTML=`<div class="card"><div class="kicker">Squad is for players 12 and older</div><p>Friends, teams and chat need an account, so they are switched off for players under 12. Your training plan, sessions and film all keep working, saved on this device.</p><p class="small muted">Ask your coach to share drills with you, or train together with a parent or guardian.</p></div>`;return;}
     if(status==="off"){const bk=VB.backend;
       root.innerHTML=bk?`<div class="card"><div class="kicker">Log in to use Squad</div><p>Friends, teams, chat and joint sessions need a free account, so your teammates can find you.</p><p class="small muted">Everything you have logged on this device moves into your account when you sign in.</p><div class="row"><button class="btn primary" type="button" data-auth="in">Log in</button><button class="btn" type="button" data-auth="up">Create an account</button></div></div>`
         :/(^|\.)claude\.(ai|site)$|claudeusercontent/.test(location.hostname)?`<div class="card"><div class="kicker">Sign in to use Squad</div><p>Friends, sharing and joint sessions use your Claude account as your login. Open this page inside Claude while signed in.</p><p class="small muted">Your own training data keeps working without it.</p></div>`
@@ -153,9 +158,9 @@ VB.squad=(function(){
     const cur=TM.find(x=>teamKey(x)===selTeam),mine=cur&&cur.owner===u,cand=[u,...R.mutual];
     const pname=id=>id===u?"You":nameOf(id),chosen=id=>POSL(posOf(id));
     const slotRow=(k,label,want)=>{const id=cur.t.slots&&cur.t.slots[k],warn=id&&posOf(id)&&posOf(id)!==want&&posOf(id)!=="any";
-      return `<div class="slot ${id?"":"open"}"><span class="sk">${k==="L"?"L":k.replace(/\d/,"")}</span><div class="sinfo"><b>${label}</b>${id?`<span class="small ${warn?"warnc":"muted"}">${esc(pname(id))} · plays ${esc(chosen(id))}${warn?" (out of position)":""}</span>`:`<span class="small muted">Open spot</span>`}</div>${id?avatar(id):`<span class="av"></span>`}
+      return `<div class="slot ${id?"":"open"}"><span class="sk">${k==="L"?"L":k.replace(/\d/,"")}</span><div class="sinfo"><b>${label}</b>${id?`<span class="small ${warn?"warnc":"muted"}">${esc(pname(id))} · plays ${esc(chosen(id))}${warn?" (out of position)":""}${mine&&!hasJoined(cur.t,id)?" · invited, not joined yet":""}</span>`:`<span class="small muted">Open spot</span>`}</div>${id?avatar(id):`<span class="av"></span>`}
         ${mine?`<select data-slot="${k}" aria-label="${label}"><option value="">Open</option>${cand.map(c=>`<option value="${c}"${c===id?" selected":""}>${esc(pname(c))} · ${esc(chosen(c))}</option>`).join("")}</select>`:""}</div>`;};
-    let teamsHTML;
+    let teamsHTML;const INV=teamInvites(),invHTML=INV.length?`<div class="card tinvites"><div class="kicker">Team invitations</div>${INV.map(x=>`<div class="row" style="justify-content:space-between;gap:10px"><span><b>${esc(x.t.name||"Team")}</b> <span class="small muted">from ${esc(nameOf(x.owner))} · ${membersOf(x.t).length} players</span></span><span class="row"><button type="button" class="btn sm primary" data-tjoin="${esc(teamKey(x))}">Join team</button><button type="button" class="btn sm" data-tdecline="${esc(teamKey(x))}">Decline</button></span></div>`).join("")}<p class="small muted">Joining shows your card to the other players on that team and opens the team chat. You can leave any time.</p></div>`:"";
     if(!cur){teamsHTML=`<div class="tempty"><div class="tempty-in"><span class="stat">Teams</span><h3>Build your six</h3><p>Pick friends for setter, outsides, middles, opposite and libero, add subs, and see the lineup on a 3D court with everyone's photo. Each friend goes in at the position they chose.</p>
         ${R.mutual.length?`<button type="button" class="btn primary" data-act="newteam">Create a team</button>`:`<p class="small muted">Add friends first in the Friends tab. Teams use mutual friends.</p><button type="button" class="btn" data-tab="friends">Find friends</button>`}</div></div>`;}
     else{const t=cur.t,ids=membersOf(t),gcT=VB.groupCompat(ids.map(id=>posOf(id)||"any")),lvl=Math.round(lvlAvg(stats())||2),sugT=suggestDrills(gcT.skills.length?gcT.skills:["pass","set","attack"],Math.max(2,ids.length),lvl).filter(d=>!(t.drills||[]).includes(d.id)).slice(0,5);
@@ -168,7 +173,7 @@ VB.squad=(function(){
           ${SLOTS.map(([k,l,w])=>slotRow(k,l,w)).join("")}
           <div class="grp">Subs · ${benchIds.length}</div><div class="subs">${benchIds.map(id=>`<span class="subchip">${avatar(id)}<b>${esc(pname(id))}</b><small>${esc(chosen(id))}</small>${mine?`<button type="button" class="x" data-unsub="${id}" aria-label="Remove ${esc(pname(id))}">×</button>`:""}</span>`).join("")||`<span class="small muted">No subs yet.</span>`}</div>
           ${mine&&free.length?`<div class="row"><select id="addSub" aria-label="Add a sub"><option value="">Add a sub</option>${free.map(c=>`<option value="${c}">${esc(pname(c))} · ${esc(chosen(c))}</option>`).join("")}</select></div>`:""}
-          ${mine?`<div class="row"><button type="button" class="btn sm" data-act="autofill">Fill by chosen positions</button><span class="colors">${["#ec3b52","#5b2bff","#20c4b4","#f5a524","#ff5fa2","#17144d"].map(c=>`<button type="button" class="cdot" data-tcolor="${c}" style="--c:${c}" aria-label="Team colour" aria-pressed="${t.color===c}"></button>`).join("")}</span><button type="button" class="btn sm" data-act="delteam">Delete team</button></div>`:`<p class="small muted">Only ${esc(nameOf(cur.owner))} can change this lineup.</p>`}</div>
+          ${mine?`<div class="row"><button type="button" class="btn sm" data-act="autofill">Fill by chosen positions</button><span class="colors">${["#ec3b52","#5b2bff","#20c4b4","#f5a524","#ff5fa2","#17144d"].map(c=>`<button type="button" class="cdot" data-tcolor="${c}" style="--c:${c}" aria-label="Team colour" aria-pressed="${t.color===c}"></button>`).join("")}</span><button type="button" class="btn sm" data-act="delteam">Delete team</button></div>`:`<p class="small muted"><button type="button" class="btn sm" data-tleave="${esc(teamKey(cur))}">Leave team</button> Only ${esc(nameOf(cur.owner))} can change this lineup.</p>`}</div>
         <div class="card"><div class="row" style="justify-content:space-between"><div class="kicker">Team drills</div><span class="fit f${Math.round(gcT.score)}">Fit ${gcT.score} / 5</span></div>
           <p class="small muted">${esc(gcT.why)}</p>
           ${(t.drills||[]).length?(t.drills||[]).map(id=>{const d=VB.drMap()[id];return d?`<div class="drow"><button type="button" class="linkbtn" data-opend="${id}">${esc(d.name)}</button><span class="small muted">${VB.SKILLS[d.skill]} · L${d.level}</span><button type="button" class="btn sm" data-getd="${id}">Add to my session</button>${mine?`<button type="button" class="x" data-rmdrill="${id}" aria-label="Remove">×</button>`:""}</div>`:"";}).join(""):`<p class="small muted">No team drills yet.</p>`}
@@ -183,8 +188,8 @@ VB.squad=(function(){
         <div class="composer"><input class="in" id="chatIn" maxlength="300" placeholder="Message ${esc(curT.title)}" value="${esc(draft)}" autocomplete="off"><button type="button" class="btn primary" data-act="send">Send</button></div>
         <p class="small muted chatnote">Messages are saved on your player card, so anyone who can open this page could read them.</p>`:`<div class="noth"><b>Pick a chat</b><span class="small muted">Team, event and direct chats with your friends.</span></div>`}</div></div>`;
     const unreadAll=TH.reduce((a,t)=>a+t.unread,0),upN=upcoming.length;
-    const tabs=[["teams","Teams",TM.length||""],["friends","Friends",R.inc.length?R.inc.length+" new":R.mutual.length||""],["events","Events",upN||""],["chat","Chat",unreadAll?unreadAll+" new":""]];
-    const pane={teams:teamsHTML,friends:`<div class="cols even"><div class="stack">${friendsHTML}</div><div class="stack">${compareHTML}${sharedHTML}</div></div>`,events:planHTML,chat:chatHTML}[tab];
+    const tabs=[["teams","Teams",INV.length?INV.length+" new":TM.length||""],["friends","Friends",R.inc.length?R.inc.length+" new":R.mutual.length||""],["events","Events",upN||""],["chat","Chat",unreadAll?unreadAll+" new":""]];
+    const pane={teams:invHTML+teamsHTML,friends:`<div class="cols even"><div class="stack">${friendsHTML}</div><div class="stack">${compareHTML}${sharedHTML}</div></div>`,events:planHTML,chat:chatHTML}[tab];
     const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart;
     const stage=document.getElementById("teamStage");if(stage&&VB.team3d)VB.team3d.park();
     root.innerHTML=`${acct}<nav class="sqtabs" role="tablist">${tabs.map(([k,l,b])=>`<button type="button" role="tab" data-tab="${k}" aria-selected="${tab===k}"><span>${l}</span>${b!==""?`<i>${b}</i>`:""}</button>`).join("")}</nav><div class="sqpane" data-pane="${tab}">${pane}</div>`;
@@ -198,6 +203,9 @@ VB.squad=(function(){
   function commit(msg){VB.save();lastPush="";push();render();if(msg)VB.ui.toast(msg);}
   function onClick(e){const b=e.target.closest("button");if(!b)return;const o=soc(),d=b.dataset;readPlan();
     if(d.act==="join"){o.joined=true;commit("Player card created.");return;}
+    if(d.tjoin){if(!o.teamJoins.includes(d.tjoin))o.teamJoins.push(d.tjoin);o.teamDeclines=o.teamDeclines.filter(k=>k!==d.tjoin);selTeam=d.tjoin;commit("You joined the team.");return;}
+    if(d.tdecline){if(!o.teamDeclines.includes(d.tdecline))o.teamDeclines.push(d.tdecline);commit("Invitation declined.");return;}
+    if(d.tleave){o.teamJoins=o.teamJoins.filter(k=>k!==d.tleave);o.teamDeclines.push(d.tleave);selTeam=null;commit("You left the team.");return;}
     if(d.tab!=null&&b.getAttribute("role")==="tab"||d.tab&&!b.getAttribute("role")){tab=d.tab;render();return;}
     if(d.team){selTeam=d.team;render();return;}
     if(d.rot){rot=+d.rot;render();return;}
@@ -248,7 +256,7 @@ VB.squad=(function(){
     root.addEventListener("keydown",e=>{if(e.target.id==="chatIn"&&e.key==="Enter"){e.preventDefault();const b=$('[data-act="send"]',root);b&&b.click();}});
     root.addEventListener("focusin",e=>{if(e.target.id==="sqEmail"&&!e.target.value&&VB.net)VB.net.user.search("").catch(()=>{});});root.addEventListener("input",e=>{if(e.target.id==="chatIn"){draft=e.target.value;return;}if(e.target.id==="sqEmail"){clearTimeout(eT);const q=e.target.value.trim();eT=setTimeout(()=>emailSearch(q),250);return;}if(e.target.id==="sqFilter"){filter=e.target.value;const R=rel(),p=VB.state.profile,box=$("#sqOthers",root);if(box)render();}});render();},
     onNet(){connect();},refresh(){render();},
-    /* read-only view of the squad for the coach tools in v3.js */
+    /* read-only view of the squad for the coach tools in app-features.js */
     data(){return {uid:uid(),players,status,joined:!!soc().joined,teams:allTeams(),membersOf,nameOf,posOf,soc:soc()};},commit(msg){commit(msg);},changed(){if(soc().joined)schedule();},
     mediaChanged(){if(soc().joined){lastPush="";schedule();}},myStats:stats,
     relation(id){const R=rel();return R.mutual.includes(id)?"friend":R.out.includes(id)?"out":R.inc.includes(id)?"inc":"none";},

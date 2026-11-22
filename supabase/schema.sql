@@ -11,8 +11,22 @@ create table if not exists public.docs (
 );
 alter table public.docs enable row level security;
 
--- Who can read a player card (players/<id>): the owner, anyone the owner lists as a friend, people on a team or
--- invited to an event with them, and everyone only if the owner set the card to public (never for under-18s).
+-- Team membership needs both sides: the team's owner lists the player on the team, and the player's own card
+-- lists "<owner id>:<team id>" in "teamsJoined" (the Join button in Squad). Being listed alone gives no access, so no
+-- one can see a player's card by putting them on a team they never joined.
+create or replace function public.is_team_member(team_owner text, team jsonb, who text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select who = team_owner or (
+    (jsonb_path_exists(team, '$.slots.* ? (@ == $u)', jsonb_build_object('u', who))
+     or coalesce(team->'subs', '[]'::jsonb) ? who)
+    and exists (select 1 from public.docs j
+                where j.path = 'players/' || who
+                  and coalesce(j.data->'teamsJoined', '[]'::jsonb) ? (team_owner || ':' || coalesce(team->>'id', ''))))
+$$;
+
+-- Who can read a player card (players/<id>): the owner, anyone the owner lists as a friend, people the owner put on
+-- one of the owner's teams or invited to an event, members of a team the player has joined, and everyone only if
+-- the owner set the card to public (never for under-18s).
 create or replace function public.can_see_player(target uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select target = auth.uid() or exists (
@@ -23,16 +37,12 @@ returns boolean language sql stable security definer set search_path = public as
       or jsonb_path_exists(c.data, '$.teams[*].slots.* ? (@ == $u)', jsonb_build_object('u', auth.uid()::text))
       or jsonb_path_exists(c.data, '$.teams[*].subs[*] ? (@ == $u)', jsonb_build_object('u', auth.uid()::text))
       or jsonb_path_exists(c.data, '$.meets[*].inv[*] ? (@ == $u)', jsonb_build_object('u', auth.uid()::text))))
-  -- teammates on someone else's team can see each other
+  -- teammates on a team both of them have joined can see each other
   or exists (
     select 1 from public.docs t, jsonb_array_elements(coalesce(t.data->'teams', '[]'::jsonb)) team
     where t.path like 'players/%' and t.path not like 'players/%/%'
-      and (t.owner = auth.uid()
-           or jsonb_path_exists(team, '$.slots.* ? (@ == $u)', jsonb_build_object('u', auth.uid()::text))
-           or coalesce(team->'subs', '[]'::jsonb) ? auth.uid()::text)
-      and (t.owner = target
-           or jsonb_path_exists(team, '$.slots.* ? (@ == $u)', jsonb_build_object('u', target::text))
-           or coalesce(team->'subs', '[]'::jsonb) ? target::text))
+      and public.is_team_member(t.owner::text, team, auth.uid()::text)
+      and public.is_team_member(t.owner::text, team, target::text))
 $$;
 
 -- Who can read a chat thread. Threads: d:<a>:<b> (direct), t:<owner>:<team id> (team), e:<host>:<event id> (event).
@@ -44,8 +54,7 @@ begin
   if k = 'd' then return me = a or me = b; end if;
   if k = 't' then
     return me = a or exists (select 1 from public.docs c, jsonb_array_elements(coalesce(c.data->'teams', '[]'::jsonb)) team
-      where c.path = 'players/' || a and team->>'id' = b
-        and (jsonb_path_exists(team, '$.slots.* ? (@ == $u)', jsonb_build_object('u', me)) or coalesce(team->'subs', '[]'::jsonb) ? me));
+      where c.path = 'players/' || a and team->>'id' = b and public.is_team_member(a, team, me));
   end if;
   if k = 'e' then
     return me = a or exists (select 1 from public.docs c, jsonb_array_elements(coalesce(c.data->'meets', '[]'::jsonb)) m
@@ -53,6 +62,8 @@ begin
   end if;
   return false;
 end $$;
+revoke execute on function public.is_team_member(text, jsonb, text) from public, anon;
+grant execute on function public.is_team_member(text, jsonb, text) to authenticated;
 revoke execute on function public.can_see_player(uuid) from public, anon;
 revoke execute on function public.can_read_thread(text) from public, anon;
 grant execute on function public.can_see_player(uuid) to authenticated;
@@ -73,7 +84,9 @@ create policy "create own docs" on public.docs for insert to authenticated
   with check (
     owner = (select auth.uid()) and (
       path = 'players/' || (select auth.uid())::text
-      or path like 'players/' || (select auth.uid())::text || '/%'
+      or (path like 'players/' || (select auth.uid())::text || '/%' and path not like 'players/%/m/%')
+      -- chat: only into a thread the sender belongs to
+      or (path like 'players/' || (select auth.uid())::text || '/m/%' and public.can_read_thread(data->>'th'))
       or path like 'data/users/' || (select auth.uid())::text || '/%'));
 
 drop policy if exists "update own docs" on public.docs;
@@ -82,7 +95,9 @@ create policy "update own docs" on public.docs for update to authenticated
   with check (
     owner = (select auth.uid()) and (
       path = 'players/' || (select auth.uid())::text
-      or path like 'players/' || (select auth.uid())::text || '/%'
+      or (path like 'players/' || (select auth.uid())::text || '/%' and path not like 'players/%/m/%')
+      -- chat: only into a thread the sender belongs to
+      or (path like 'players/' || (select auth.uid())::text || '/m/%' and public.can_read_thread(data->>'th'))
       or path like 'data/users/' || (select auth.uid())::text || '/%'));
 
 drop policy if exists "delete own docs" on public.docs;
@@ -99,8 +114,12 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists minor boolean not null default false;
 alter table public.profiles enable row level security;
 
+-- Names are visible only for yourself and players whose card you can see (friends, teammates, event invites,
+-- public cards). Finding new people goes through find_players below, which keeps under-18s hidden.
 drop policy if exists "signed-in users can see names" on public.profiles;
-create policy "signed-in users can see names" on public.profiles for select to authenticated using (true);
+drop policy if exists "see names of players you can see" on public.profiles;
+create policy "see names of players you can see" on public.profiles for select to authenticated
+  using (id = (select auth.uid()) or public.can_see_player(id));
 
 drop policy if exists "create own profile" on public.profiles;
 create policy "create own profile" on public.profiles for insert to authenticated with check (id = (select auth.uid()));

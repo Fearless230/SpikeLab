@@ -13,6 +13,35 @@ VB.daysBetween=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"
 VB.shortDate=ds=>new Date(ds+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"});
 VB.esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+/* ---------- data from other players: never trusted ----------
+   Cards, media and messages written by other people are cleaned here before any of it reaches the page, so a
+   doctored card cannot slip markup, scripts or odd URLs into someone else's screen. */
+const SAFE_ID=/^[A-Za-z0-9_-]{1,64}$/, SAFE_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+VB.safeId=v=>typeof v==="string"&&SAFE_ID.test(v)?v:null;
+VB.safeUid=v=>typeof v==="string"&&SAFE_UUID.test(v)?v:null;
+VB.safeColor=v=>typeof v==="string"&&/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(v)?v:null;
+VB.safeImg=v=>{if(typeof v!=="string"||v.length>2e6)return null;
+  if(/^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(v))return v;
+  if(/^https:\/\/[^\s"'<>()\\]+$/.test(v))return v;return null;};
+VB.safeText=(v,n)=>typeof v==="string"?v.slice(0,n||200):"";
+VB.cleanMedia=m=>{if(!m||typeof m!=="object")return null;return {pfp:VB.safeImg(m.pfp),bg:VB.safeImg(m.bg),accent:VB.safeColor(m.accent),at:+m.at||0};};
+VB.cleanCard=function(c){if(!c||typeof c!=="object")return null;const ids=(a,n,f)=>(Array.isArray(a)?a:[]).map(f||VB.safeUid).filter(Boolean).slice(0,n);
+  const num=v=>typeof v==="number"&&isFinite(v)?v:null,out=Object.assign({},c);
+  out.nick=VB.safeText(c.nick,40);out.number=num(c.number)!=null?Math.round(c.number)%1000:null;out.pos=VB.POS&&VB.POS[c.pos]?c.pos:"any";
+  out.hand=c.hand==="left"?"left":"right";out.exp=VB.safeText(c.exp,30);out.friends=ids(c.friends,400);
+  out.teamsJoined=(Array.isArray(c.teamsJoined)?c.teamsJoined:[]).filter(k=>typeof k==="string"&&/^[0-9a-f-]{36}:[A-Za-z0-9_-]{1,64}$/i.test(k)).slice(0,20);
+  out.teams=(Array.isArray(c.teams)?c.teams:[]).filter(t=>t&&VB.safeId(t.id)).slice(0,6).map(t=>{const sl={};Object.entries(t.slots||{}).forEach(([k,v])=>{if(/^[A-Z]{1,2}\d?$/.test(k))sl[k]=VB.safeUid(v);});
+    return Object.assign({},t,{name:VB.safeText(t.name,28),color:VB.safeColor(t.color),slots:sl,subs:ids(t.subs,8),drills:ids(t.drills,20,VB.safeId)});});
+  out.meets=(Array.isArray(c.meets)?c.meets:[]).filter(m=>m&&VB.safeId(m.id)).slice(0,20).map(m=>Object.assign({},m,{inv:ids(m.inv,30),drills:ids(m.drills,20,VB.safeId),team:typeof m.team==="string"&&/^[0-9a-f-]{36}:[A-Za-z0-9_-]{1,64}$/i.test(m.team)?m.team:null}));
+  out.shares=(Array.isArray(c.shares)?c.shares:[]).filter(x=>x&&VB.safeId(x.id)).slice(0,20);
+  const rs={};Object.entries(c.rsvp&&typeof c.rsvp==="object"?c.rsvp:{}).forEach(([k,v])=>{if(VB.safeId(k)&&(v==="yes"||v==="no"))rs[k]=v;});out.rsvp=rs;
+  out.msgs=(Array.isArray(c.msgs)?c.msgs:[]).filter(m=>m&&typeof m.th==="string"&&m.th.length<200).slice(0,80).map(m=>Object.assign({},m,{id:VB.safeId(m.id)||"x",text:VB.safeText(m.text,300),at:num(m.at)||0}));
+  out.look=c.look&&typeof c.look==="object"?c.look:null;out.mediaAt=num(c.mediaAt)||0;
+  out.stats=c.stats&&typeof c.stats==="object"?c.stats:{};
+  out.ready=c.ready&&typeof c.ready==="object"?{score:num(c.ready.score),date:VB.safeText(c.ready.date,10),load7:num(c.ready.load7),acwr:num(c.ready.acwr),sore:VB.safeText(c.ready.sore,60),arm7:num(c.ready.arm7)}:null;
+  out.teamStats=Array.isArray(c.teamStats)?c.teamStats.filter(x=>x&&VB.safeId(x.id)).slice(0,40):[];
+  return out;};
+
 VB.uid=uid;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -114,7 +143,7 @@ async function push(){if(!cloudRef||cloudBusy||!cloudDirty)return;cloudBusy=true
   cloudBusy=false;if(cloudDirty&&cloudRef){clearTimeout(cloudTimer);cloudTimer=setTimeout(push,3000);}}
 VB.initCloud=async function(onReplace){
   try{
-    if(VB.child()){VB.onSync("device");VB.net=null;VB.onNet&&VB.onNet();return;}  // under 13: nothing leaves this device
+    if(VB.child()){VB.onSync("device");VB.net=null;VB.onNet&&VB.onNet();return;}  // under 12: nothing leaves this device
     if(!window.claude||!window.claude.use){VB.onSync("device");VB.net=null;VB.onNet&&VB.onNet();return;}
     const [db,user]=await Promise.all([window.claude.use("db"),window.claude.use("user")]);
     if(!db||!user){VB.onSync("device");VB.net=null;VB.onNet&&VB.onNet();return;}
@@ -131,10 +160,11 @@ VB.initCloud=async function(onReplace){
   }catch(e){VB.onSync("device");VB.onNet&&VB.onNet();}
 };
 
-/* ---------- age: under 18 limits sharing, under 13 keeps everything on this device ---------- */
+/* ---------- age: under 18 limits sharing, under 12 keeps everything on this device. Squad is for 12 and up. ---------- */
 VB.ageOf=()=>{const a=VB.state.profile&&VB.state.profile.age;return a==null||a===""?null:+a;};
 VB.minor=()=>{const a=VB.ageOf();return a!=null&&a<18;};
-VB.child=()=>{const a=VB.ageOf();return a!=null&&a<13;};
+VB.SQUAD_MIN_AGE=12;
+VB.child=()=>{const a=VB.ageOf();return a!=null&&a<VB.SQUAD_MIN_AGE;};
 
 /* ---------- units ---------- */
 const imp=()=>!!(VB.state.profile&&VB.state.profile.units==="imperial");
