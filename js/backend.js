@@ -9,6 +9,11 @@ if(onClaude||window.claude||!configured){if(!onClaude&&!configured)console.info(
 
 let sb=null,session=null,readyRes,decided=false,decidedVal=null;const ready=new Promise(r=>readyRes=r);
 const uid=()=>session&&session.user&&session.user.id;
+/* userAuth: the person used the log-in form on this page. Only then does a SIGNED_IN mean "someone new signed in":
+   Supabase also sends SIGNED_IN when it quietly restores or refreshes a saved login (on load, when the tab comes back,
+   or from another tab), and reloading on those caused an endless reload loop. reloadOnce adds a second guard. */
+let userAuth=false;
+function reloadOnce(){try{const k="vbj-auth-reload",t=+sessionStorage.getItem(k)||0;if(Date.now()-t<30000)return false;sessionStorage.setItem(k,String(Date.now()));}catch(e){return false;}location.reload();return true;}
 function decide(v){if(decided)return;decided=true;decidedVal=v;readyRes(v);}
 
 /* ---------- keeping the sign-in fresh ----------
@@ -27,15 +32,35 @@ function db(){
     async get(){const {data,error}=await q(()=>sb.from("docs").select("path,data").eq("path",path).maybeSingle());if(error)throw error;return {exists:!!data,data:()=>data?data.data:null,id:path.split("/").pop()};},
     async set(obj){const {error}=await q(()=>sb.from("docs").upsert({path,owner:uid(),data:obj,updated_at:new Date().toISOString()}));if(error){const e=new Error(error.message);e.code=/too large|payload/i.test(error.message)?"quota_exceeded":"unavailable";throw e;}},
     async delete(){const {error}=await q(()=>sb.from("docs").delete().eq("path",path));if(error)throw error;}});
-  const collection=name=>({
-    async get(){const {data,error}=await q(()=>sb.from("docs").select("path,data").like("path",name+"/%"));if(error)throw error;
-      const rows=(data||[]).filter(r=>r.path.split("/").length===2);return {docs:rows.map(r=>({id:r.path.split("/")[1],data:()=>r.data}))};},
-    onSnapshot(cb,onErr){let dead=false,t=0;const self=this;
-      const load=()=>{if(dead)return;self.get().then(s=>{if(!dead)cb(s);}).catch(e=>{if(!dead&&onErr)onErr(e);});};
-      const soon=()=>{clearTimeout(t);t=setTimeout(load,250);};
-      load();const ch=sb.channel("docs-"+name+"-"+Math.random().toString(36).slice(2,7)).on("postgres_changes",{event:"*",schema:"public",table:"docs"},p=>{const path=(p.new&&p.new.path)||(p.old&&p.old.path)||"";if(!path||path.indexOf(name+"/")===0)soon();}).subscribe();
-      const poll=setInterval(()=>{if(!document.hidden)load();},20000),vis=()=>{if(!document.hidden)soon();};document.addEventListener("visibilitychange",vis);
-      return ()=>{dead=true;clearInterval(poll);clearTimeout(t);document.removeEventListener("visibilitychange",vis);try{sb.removeChannel(ch);}catch(e){}};}});
+  /* a collection of top-level docs (for example players/<uid>). To keep downloads small (Supabase's free plan counts every byte):
+     - only top-level docs are requested: nested ones (players/<uid>/media/img with photos, players/<uid>/m/... chat) are
+       excluded by the database, not downloaded and thrown away;
+     - after one full load, refreshes ask only for docs changed since the newest one seen (with a minute of overlap);
+     - live change signals update the list directly from the change itself, and changes to nested docs are ignored;
+     - the backup check runs every 2 minutes, with a full reload every 10 minutes and when the tab comes back. */
+  const collection=name=>{const top=name+"/%",nested=name+"/%/%";
+    const rowsQ=since=>{let b=sb.from("docs").select("path,data,updated_at").like("path",top).not("path","like",nested);if(since)b=b.gt("updated_at",since);return b;};
+    const isTop=path=>path.indexOf(name+"/")===0&&path.split("/").length===2;
+    return {
+    async get(){const {data,error}=await q(()=>rowsQ());if(error)throw error;
+      return {docs:(data||[]).filter(r=>isTop(r.path)).map(r=>({id:r.path.split("/")[1],data:()=>r.data}))};},
+    onSnapshot(cb,onErr){let dead=false,t=0,lastFull=0,maxAt=0,busy=null;const rows=new Map();
+      const emit=()=>{if(!dead)cb({docs:[...rows.values()].map(r=>({id:r.path.split("/")[1],data:()=>r.data}))});};
+      const take=r=>{if(!r||!r.path||!isTop(r.path))return;rows.set(r.path,{path:r.path,data:r.data});const at=Date.parse(r.updated_at||"");if(at>maxAt)maxAt=at;};
+      const load=full=>{if(dead)return Promise.resolve();if(busy)return busy;
+        busy=(async()=>{try{full=full||!maxAt||Date.now()-lastFull>600000;const since=full?null:new Date(maxAt-60000).toISOString();
+          const {data,error}=await q(()=>rowsQ(since));if(error)throw error;if(dead)return;
+          if(full){rows.clear();maxAt=0;lastFull=Date.now();}(data||[]).forEach(take);if(full||(data&&data.length))emit();}
+          catch(e){if(!dead&&onErr)onErr(e);}finally{busy=null;}})();return busy;};
+      const soon=full=>{clearTimeout(t);t=setTimeout(()=>load(full),250);};
+      load(true);
+      const ch=sb.channel("docs-"+name+"-"+Math.random().toString(36).slice(2,7)).on("postgres_changes",{event:"*",schema:"public",table:"docs"},p=>{
+        const path=(p.new&&p.new.path)||(p.old&&p.old.path)||"";if(!isTop(path))return;
+        if(p.eventType==="DELETE"){rows.delete(path);emit();return;}
+        if(p.new&&p.new.data!==undefined&&!p.errors){take(p.new);emit();return;}
+        soon(false);}).subscribe();
+      const poll=setInterval(()=>{if(!document.hidden)load(false);},120000),vis=()=>{if(!document.hidden)soon(true);};document.addEventListener("visibilitychange",vis);
+      return ()=>{dead=true;clearInterval(poll);clearTimeout(t);document.removeEventListener("visibilitychange",vis);try{sb.removeChannel(ch);}catch(e){}};}};};
   /* chat threads I can read (players/<sender>/m/<thread>); the database only returns threads I am part of */
   const inbox={onSnapshot(cb){let dead=false,t=0;const load=async()=>{if(dead)return;try{const {data,error}=await q(()=>sb.from("docs").select("path,data").like("path","players/%/m/%"));if(!error&&!dead)cb((data||[]).map(r=>({from:r.path.split("/")[1],th:r.data&&r.data.th,msgs:(r.data&&r.data.msgs)||[]})));}catch(e){}};
       const soon=()=>{clearTimeout(t);t=setTimeout(load,250);};load();
@@ -83,7 +108,7 @@ function show(m,msg,kind){mode=m||mode;if(!box){const st=document.createElement(
 function hide(){if(box)box.hidden=true;}
 function click(e){const b=e.target.closest("button");if(!b)return;if(b.dataset.m){show(b.dataset.m);}else if(b.dataset.skip){hide();decide(false);}else if(b.dataset.close){hide();}}
 const site=()=>location.origin+location.pathname;
-async function submit(e){e.preventDefault();const f=e.target,v=n=>(f.elements[n]&&f.elements[n].value||"").trim(),go=f.querySelector(".go"),say=(m,k)=>{const el=f.querySelector(".msg");el.textContent=m;el.className="msg "+(k||"err");};
+async function submit(e){e.preventDefault();userAuth=true;const f=e.target,v=n=>(f.elements[n]&&f.elements[n].value||"").trim(),go=f.querySelector(".go"),say=(m,k)=>{const el=f.querySelector(".msg");el.textContent=m;el.className="msg "+(k||"err");};
   if(mode!=="newpw"&&v("email")&&!/^\S+@\S+\.\S+$/.test(v("email")))return say("Enter a valid email address.");
   if((mode==="in"||mode==="up"||mode==="newpw")&&(f.elements.pw.value||"").length<6)return say("Use at least 6 characters for the password.");
   if(mode==="up"&&!v("name"))return say("Add your name so friends can find you.");
@@ -112,7 +137,9 @@ async function start(){sb=window.supabase.createClient(C.supabaseUrl,C.supabaseA
     if(s&&!decided){hide();saveProfileRow();decide(true);}
     /* signed in after starting without an account, after being signed out, or as someone else: reload so every part of
        the app (cloud saving, Squad, chat) connects to the account */
-    else if(ev==="SIGNED_IN"&&decided&&s){hide();if(decidedVal===false||!before||before!==s.user.id){location.reload();return;}}
+    else if(ev==="SIGNED_IN"&&decided&&s){hide();const other=before&&before!==s.user.id;
+      if((userAuth&&(decidedVal===false||!before))||other){if(reloadOnce())return;}
+      if(!before)saveProfileRow();}
     if(ev==="SIGNED_OUT"&&decided){
       if(explicitLogout)return;
       /* not chosen by the person (for example the session ran out on this device): keep everything on the device and ask
