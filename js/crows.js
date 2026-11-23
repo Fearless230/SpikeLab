@@ -16,7 +16,7 @@ const PEOPLE={
     col:{a:"#ff7a1a",b:"#ffb21a",rgb:"255,122,26",dark:"#b84a06",btn:"#c24e08",btnInk:"#ffffff",bg:"#2a1608"},
     start:{kit:"crow",ball:"crow",fx:"feathers",title:"crow",bg:"crowgym"},
     boot:[["Reflexes","online"],["Platform","locked and level"],["Rolling Thunder","charged"]],
-    hello:"Welcome back to the Crow's Nest. All systems are ready.",
+    hello:"Welcome back to the Crow's Nest. All systems are ready.",hype:["Rolling","Thunder!!"],num:"4",job:"a guardian",
     lines:["The rally isn't over until the ball touches the floor. So don't let it.","Height is a number on a chart. Heart doesn't fit on a chart.","Every great spike starts with someone who refused to let the ball drop.",
       "Read. Move. Dig. Shout. Repeat.","Be loud. A libero's voice is part of the defence.","Fall down seven times, dig the eighth.","Crows fly together. Lift your teammates up.","Sore legs today, highlight reel tomorrow.",
       "Get low, stay low, stay hungry.","You can't control the serve. You can control your first step.","The back row is where the brave ones play.","When the ball comes at you hard, smile. That's your ball."]},
@@ -26,10 +26,30 @@ const PEOPLE={
     col:{a:"#ffc21a",b:"#ff7a1a",rgb:"255,194,26",dark:"#8a5d00",btn:"#ffc21a",btnInk:"#121115",bg:"#2a2006"},
     start:{kit:"fearless",ball:"thunder",fx:"thunder",title:"fearless",bg:"sky"},
     boot:[["Approach","locked in"],["Jump","loaded"],["Fear","not found"]],
-    hello:"Fearless mode is online. Let's fly.",
+    hello:"Fearless mode is online. Let's fly.",hype:["Fearless","Spike!!"],num:"10",job:"a fearless hitter",
     lines:["Fear is just the net looking taller than it is.","Swing like the block isn't there. Then find the gap.","Every big hitter missed a thousand spikes first.","Call for the ball. Loud. Every time.",
       "Jump like the ceiling is the limit, not the net.","A fearless hitter wants the ball when the score is tied.","Land soft, swing hard.","Missed it? Next ball. Fearless means you go again.",
-      "Three steps, big arms, explode.","The block is a wall until you learn where the doors are.","Hit the ball where they aren't.","Confidence is built one good rep at a time."]}
+      "Three steps, big arms, explode.","The block is a wall until you learn where the doors are.","Hit the ball where they aren't.","Confidence is built one good rep at a time."]},
+  lucille:{code:"1juvd7hsap7",name:"Lucille Yong Thevenot",edition:"Spark edition",big:"SPARK",focus:"mix",
+    tag:"The spark that lights up the court",
+    note:"Lucille, this page is just for you. Every great team needs someone who brings the energy when it matters most, and that's you. Keep shining, keep flying. From someone cheering for you.",
+    col:{a:"#ff7a1a",b:"#ffb21a",rgb:"255,122,26",dark:"#b84a06",btn:"#c24e08",btnInk:"#ffffff",bg:"#2a1608"},
+    start:{kit:"guardian",ball:"sunset",fx:"feathers",title:"spark",bg:"orange"},
+    boot:[["Energy","maximum"],["Smile","switched on"],["Team spirit","overflowing"]],
+    hello:"The spark is back in the Crow's Nest. Let's light it up.",hype:["Spark","Mode!!"],num:"7",job:"the team's spark",
+    lines:["Energy is contagious. Be the one who starts it.","Every point is a new chance to shine.","Celebrate the small wins: they turn into big ones.","Talk, cheer, repeat. Loud teams win more.",
+      "The ball doesn't know how tall you are. It only knows how hard you try.","Shake off the miss. The next ball is yours.","Bring the fire, keep it kind.","A great touch starts with happy feet.",
+      "Practice like it's a final, play like it's practice.","Your best is enough. Your best gets better.","Lift the team when the score is tight.","Fly high, land soft, go again."]},
+  laura:{code:"vn2h1qoh5w",name:"Laura Farmer",edition:"Captain edition",big:"CAPTAIN",focus:"mix",
+    tag:"Leads from the front",
+    note:"Laura, this page is just for you. Captains aren't the loudest or the tallest: they're the ones everyone looks to when it gets hard. Keep leading, keep flying. From someone cheering for you.",
+    col:{a:"#ff7a1a",b:"#ffb21a",rgb:"255,122,26",dark:"#b84a06",btn:"#c24e08",btnInk:"#ffffff",bg:"#2a1608"},
+    start:{kit:"crow",ball:"crow",fx:"thunder",title:"captain",bg:"crowgym"},
+    boot:[["Leadership","online"],["Game plan","loaded"],["Calm under pressure","confirmed"]],
+    hello:"Captain on deck. The Crow's Nest is ready for your orders.",hype:["Captain's","Call!!"],num:"1",job:"a captain",
+    lines:["A captain's first job is to make everyone else better.","Calm voice, clear calls, fast feet.","When the team is down, be the first one to clap.","Lead by doing the boring things brilliantly.",
+      "Win the next point. Then the next one.","Pressure is a privilege.","Know the rotation, know the plan, know your people.","The scoreboard follows the effort.",
+      "Say the name, make the call, own the ball.","Great teams aren't built on one big play, but on a thousand small ones.","Stay steady. The team takes its temperature from you.","Fly together, land together."]}
 };
 let ORANGE="#ff7a1a";
 
@@ -57,7 +77,7 @@ function C(){const g=G(),id=who();if(!g.people[id]||typeof g.people[id]!=="objec
 const save=()=>{VB.save&&VB.save();};
 
 /* ---------- rewards ---------- */
-const TITLES={crow:"Crow of Karasuno",fearless:"Fearless",guardian:"Guardian Deity",thunder:"Rolling Thunder",quick:"Freak Quick",brain:"Volleyball Brain",ace:"Karasuno Ace",server:"Service Ace",
+const TITLES={crow:"Crow of Karasuno",fearless:"Fearless",spark:"The Spark",captain:"Captain",guardian:"Guardian Deity",thunder:"Rolling Thunder",quick:"Freak Quick",brain:"Volleyball Brain",ace:"Karasuno Ace",server:"Service Ace",
   giant:"Little Giant",allround:"All-Rounder",champ:"National Champion",goat:"The GOAT"};
 const BGS={crowgym:"Crow gym",orange:"Orange court",sky:"Night sky court"};
 const QN=8;
@@ -91,6 +111,8 @@ const SHOP=[
   {id:"sky",name:"Night sky court",kind:"Background",cost:250,r:["bg","sky"]},
   {id:"fearless",name:"Fearless",kind:"Title",cost:300,r:["title","fearless"]},
   {id:"crowtitle",name:"Crow of Karasuno",kind:"Title",cost:300,r:["title","crow"]},
+  {id:"spark",name:"The Spark",kind:"Title",cost:300,r:["title","spark"]},
+  {id:"captain",name:"Captain",kind:"Title",cost:300,r:["title","captain"]},
   {id:"goat",name:"The GOAT",kind:"Title",cost:400,r:["title","goat"]}
 ];
 /* the season road: invented rival teams, one match at a time */
@@ -259,8 +281,8 @@ function rewardName(k,id){return k==="title"?`Title: ${TITLES[id]}`:k==="bg"?`Ba
 
 /* ---------- Rolling Thunder ---------- */
 function rollingThunder(){const c=C();c.thunder++;const d=today();if(c.rtDay!==d){c.rtDay=d;c.rtN=0;}if(c.rtN<10){c.rtN++;award(1);}save();
-  sfx("thunder");const ov=document.createElement("div");ov.className="rt";ov.setAttribute("aria-hidden","true");const fear=who()==="theodore";
-  ov.innerHTML=`<svg class="rt-bolt" viewBox="0 0 400 120"><path d="M0 70 L120 40 L105 62 L260 22 L240 52 L400 10 L250 78 L268 56 L110 98 L128 74 Z"/></svg><div class="rt-t"><span>${fear?"FEARLESS":"ROLLING"}</span><span>${fear?"SPIKE!!":"THUNDER!!"}</span></div>`;
+  sfx("thunder");const ov=document.createElement("div");ov.className="rt";ov.setAttribute("aria-hidden","true");const hy=ME().hype||["Rolling","Thunder!!"];
+  ov.innerHTML=`<svg class="rt-bolt" viewBox="0 0 400 120"><path d="M0 70 L120 40 L105 62 L260 22 L240 52 L400 10 L250 78 L268 56 L110 98 L128 74 Z"/></svg><div class="rt-t"><span>${esc(hy[0].toUpperCase())}</span><span>${esc(hy[1].toUpperCase())}</span></div>`;
   document.body.appendChild(ov);if(!reduced()){document.body.classList.remove("rtshake");void document.body.offsetWidth;document.body.classList.add("rtshake");}
   setTimeout(()=>{ov.remove();document.body.classList.remove("rtshake");},1500);checkBadges();refreshStats();}
 
@@ -290,7 +312,7 @@ const CAMP=[
   {id:"cheer",f:"all",t:"Team energy",d:"Teach someone one volleyball skill, or cheer a teammate on today.",x:"Good teams talk"},
   {id:"film",f:"all",t:"Film yourself",d:"Record one rep of your best skill on the Film page and look at it in slow motion.",x:"Side view, whole body in frame"}
 ];
-function campToday(){const f=ME().focus,mine=CAMP.filter(q=>q.f===f),all=CAMP.filter(q=>q.f==="all"),s=parseInt(hash("camp"+today()+who()),36);
+function campToday(){const f=ME().focus,mine=CAMP.filter(q=>f==="mix"?q.f!=="all":q.f===f),all=CAMP.filter(q=>q.f==="all"),s=parseInt(hash("camp"+today()+who()),36);
   const pick=(arr,k)=>arr[(s+k*7)%arr.length];const a=pick(mine,0),b=pick(mine,3)===a?mine[(mine.indexOf(a)+1)%mine.length]:pick(mine,3),c=pick(all,1);return [a,b,c];}
 
 /* ---------- quiz: 8 per round, about half from the person's focus ---------- */
@@ -336,7 +358,7 @@ function render(sub){const host=$("#v-nest");if(!host)return;if(!on()){location.
       <div class="ntitle"><b id="nTitle">${esc(titleText()||p.tag)}</b><span>${esc((VB.POS[pr.pos]||VB.POS.any).label)}${pr.number!=null?" · No. "+esc(pr.number):""}</span></div>
       <p class="nline">“${esc(p.lines[dayIdx(p.lines.length,who())])}”</p>
       <div class="nstats" id="nStats"></div>
-      <div class="row nbtns"><button class="btn rtbtn" type="button" id="rtBtn"><span>${who()==="theodore"?"Fearless spike!":"Rolling Thunder!"}</span></button><button class="btn sm ghost" type="button" id="nMute" aria-pressed="${!!G().mute}">${G().mute?"Sound off":"Sound on"}</button><a class="btn sm ghost" href="#profile">Back to profile</a></div></div></div>
+      <div class="row nbtns"><button class="btn rtbtn" type="button" id="rtBtn"><span>${esc((p.hype||["Rolling","Thunder!!"]).join(" ").replace(/!!$/,"!"))}</span></button><button class="btn sm ghost" type="button" id="nMute" aria-pressed="${!!G().mute}">${G().mute?"Sound off":"Sound on"}</button><a class="btn sm ghost" href="#profile">Back to profile</a></div></div></div>
     <div class="wrap nwrap"><div class="nnote">${crowSvg("nnb")}<div><div class="kicker">A note for you</div><p>${esc(p.note)}</p></div></div>
       <div class="ntabs" role="tablist" aria-label="Crow's Nest">${TABS.map(([k,l])=>`<button type="button" role="tab" data-nt="${k}" aria-selected="${tab===k}">${l}</button>`).join("")}</div>
       <div id="nPanel" role="tabpanel"></div></div>`;
@@ -365,7 +387,7 @@ function panel(){const P=$("#nPanel");if(!P)return;stopGame();$$("[data-nt]").fo
     game=serveGame($("#svCv"));}
   else if(tab==="iq"){quizStart(P);}
   else if(tab==="camp"){const qs=campToday(),done=c.camp[today()]||[],days=[];for(let i=13;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=VB.iso?VB.iso(d):d.toISOString().slice(0,10);days.push([k,(c.camp[k]||[]).length]);}
-    P.innerHTML=`<div class="ncamp"><div class="ngh"><div><div class="kicker">Today's camp · ${p.focus==="att"?"attack":"defence"} focus</div><h3>Three jobs for ${p.focus==="att"?"a fearless hitter":"a guardian"}</h3><p class="small muted">New jobs every day: two for your position, one for everyone. Tick each one when you've done it: 15 feathers each, and a 20 feather bonus for all three. Dives and sprawls go on a mat or grass, never a hard floor.</p></div></div>
+    P.innerHTML=`<div class="ncamp"><div class="ngh"><div><div class="kicker">Today's camp · ${p.focus==="att"?"attack":p.focus==="mix"?"all-round":"defence"} focus</div><h3>Three jobs for ${esc(p.job||"a crow")}</h3><p class="small muted">New jobs every day: two for your focus, one for everyone. Tick each one when you've done it: 15 feathers each, and a 20 feather bonus for all three. Dives and sprawls go on a mat or grass, never a hard floor.</p></div></div>
       <div class="camprow">${qs.map(q=>{const d=done.includes(q.id);return `<button type="button" class="cq ${d?"done":""}" data-cq="${q.id}" aria-pressed="${d}"><span class="cqk">${d?"Done":"To do"}</span><b>${esc(q.t)}</b><span>${esc(q.d)}</span><small>${esc(q.x)}</small></button>`;}).join("")}</div>
       <div class="cweek"><span class="stat">Last 14 days</span><div>${days.map(([k,n])=>`<i class="${n>=3?"full":n?"part":""}" title="${k}: ${n}/3"><span>${["S","M","T","W","T","F","S"][new Date(k+"T12:00").getDay()]}</span></i>`).join("")}</div></div></div>`;}
   else if(tab==="season"){const wk=weekKey(),g=c.goal.week===wk?c.goal:{};
@@ -576,7 +598,7 @@ function serveGame(cv){const g=cv.getContext("2d"),W=cv.width,H=cv.height,c=C();
     for(let k=0;k<6;k++){g.fillStyle=k%2?"#f4efe6":ORANGE;g.fillRect(170,NETY-130+k*8,4,8);g.fillRect(726,NETY-130+k*8,4,8);}
     /* our end line and the server */
     g.fillStyle="#f4efe6";g.fillRect(0,H-58,W,4);
-    if(S){const sx=450,sy=H-24,ph=S.phase;g.save();g.translate(sx,sy);g.fillStyle="#141217";g.beginPath();g.arc(0,-92,13,0,7);g.fill();g.fillStyle=ORANGE;g.fillRect(-16,-78,32,44);g.fillStyle="#141217";g.font="800 18px 'Barlow Condensed',sans-serif";g.fillText(who()==="theodore"?"10":"4",0,-56);
+    if(S){const sx=450,sy=H-24,ph=S.phase;g.save();g.translate(sx,sy);g.fillStyle="#141217";g.beginPath();g.arc(0,-92,13,0,7);g.fill();g.fillStyle=ORANGE;g.fillRect(-16,-78,32,44);g.fillStyle="#141217";g.font="800 18px 'Barlow Condensed',sans-serif";g.fillText(ME().num||"4",0,-56);
       g.strokeStyle="#141217";g.lineWidth=9;g.lineCap="round";g.beginPath();g.moveTo(-8,-34);g.lineTo(-12,0);g.moveTo(8,-34);g.lineTo(12,0);g.stroke();g.strokeStyle="#e0ac87";g.lineWidth=7;const sw=ph==="fly"||ph==="result"?-.4:-2.2;g.beginPath();g.moveTo(12,-72);g.lineTo(12+Math.cos(sw)*36,-72+Math.sin(sw)*36);g.stroke();g.restore();}
     /* ball */
     if(S&&S.ball){const b=S.ball,k=Math.min(1,b.t/.75),L=cp(b.u,b.v),x=450+(L[0]-450)*k,y=(H-150)+(L[1]-(H-150))*k-Math.sin(Math.PI*k)*(b.res==="net"?60:160),s=1.1-(1.1-L[2]*.7)*k;
@@ -610,7 +632,7 @@ function serveGame(cv){const g=cv.getContext("2d"),W=cv.width,H=cv.height,c=C();
 
 /* ---------- Volleyball IQ ---------- */
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function quizStart(P){const f=ME().focus,mine=shuffle(QUIZ.filter(q=>q.f===f)).slice(0,4),rest=shuffle(QUIZ.filter(q=>!mine.includes(q))).slice(0,QN-mine.length);
+function quizStart(P){const f=ME().focus,mine=shuffle(QUIZ.filter(q=>f==="mix"||q.f===f)).slice(0,4),rest=shuffle(QUIZ.filter(q=>!mine.includes(q))).slice(0,QN-mine.length);
   quiz={qs:shuffle(mine.concat(rest)).map(q=>({...q,opts:shuffle(q.a.map((t,i)=>({t,ok:i===0})))})),i:0,right:0,picked:null};quizRender(P);}
 function quizRender(P){P=P||$("#nPanel");const c=C();if(!P||!quiz)return;
   if(quiz.i>=quiz.qs.length){const fe=quiz.right*5;award(fe);c.games++;const nb=quiz.right>c.best.quiz;if(nb)c.best.quiz=quiz.right;save();checkBadges();refreshStats();
