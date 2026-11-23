@@ -16,6 +16,7 @@ const MKEY="vb-media-v1";
 VB.media={pfp:null,bg:null,bgMode:"arena",accent:null,at:0};
 try{const m=JSON.parse(localStorage.getItem(MKEY)||"null");if(m&&typeof m==="object")Object.assign(VB.media,m);}catch(e){}
 let mediaCloudBusy=false;
+VB.saveMedia=()=>saveMedia();
 function saveMedia(){VB.media.at=Date.now();try{localStorage.setItem(MKEY,JSON.stringify(VB.media));}catch(e){VB.ui&&VB.ui.toast("This browser is out of space for photos. They are still saved to your account if you are signed in.");}
   if(VB.net&&!mediaCloudBusy){mediaCloudBusy=true;VB.net.db.doc("data/users/"+VB.net.uid+"/media").set({json:JSON.stringify(VB.media)}).catch(()=>{}).finally(()=>{mediaCloudBusy=false;});}
   VB.squad&&VB.squad.mediaChanged&&VB.squad.mediaChanged();}
@@ -51,7 +52,8 @@ function grain(g,W,H,a){const n=document.createElement("canvas");n.width=n.heigh
 const rgba=(h,a)=>{const c=hexRgb(h);return `rgba(${c[0]},${c[1]},${c[2]},${a})`;};
 /* generated backgrounds, all volleyball scenes tinted by the accent */
 VB.genBg=function(mode,accent,photo){const W=1200,H=480,c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d"),A=accent||"#d8b25a";
-  if(mode==="photo"&&photo){const s=document.createElement("canvas");s.width=30;s.height=12;const sg=s.getContext("2d"),sc=Math.max(30/photo.width,12/photo.height);sg.drawImage(photo,(30-photo.width*sc)/2,(12-photo.height*sc)/2,photo.width*sc,photo.height*sc);
+  if(VB.genBgExtra&&VB.genBgExtra[mode])VB.genBgExtra[mode](g,W,H,A);
+  else if(mode==="photo"&&photo){const s=document.createElement("canvas");s.width=30;s.height=12;const sg=s.getContext("2d"),sc=Math.max(30/photo.width,12/photo.height);sg.drawImage(photo,(30-photo.width*sc)/2,(12-photo.height*sc)/2,photo.width*sc,photo.height*sc);
     g.imageSmoothingEnabled=true;g.imageSmoothingQuality="high";g.drawImage(s,-60,-40,W+120,H+80);const pal=palette(photo);const gr=g.createLinearGradient(0,0,W,H);gr.addColorStop(0,rgba(pal[0]||A,.55));gr.addColorStop(.6,"rgba(11,10,15,.35)");gr.addColorStop(1,rgba(pal[1]||A,.45));g.fillStyle=gr;g.fillRect(0,0,W,H);
     courtLines(g,W,H,"rgba(255,255,255,.18)");}
   else if(mode==="net"){g.fillStyle="#08070b";g.fillRect(0,0,W,H);const r=g.createRadialGradient(W*.7,H*.3,0,W*.7,H*.3,W*.7);r.addColorStop(0,rgba(A,.5));r.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=r;g.fillRect(0,0,W,H);
@@ -91,7 +93,7 @@ VB.renderCard=function(host,d,opt){opt=opt||{};const acc=d.accent||(VB.THEMES&&V
       <div class="pc-stripes"></div>
       <canvas class="pc-fig" width="${FW}" height="${FH}" aria-label="3D figure, drag to turn it"></canvas>
       <div class="pc-top"><div><span class="pc-pos">${POS_ABBR[d.pos]||"ALL"}</span><span class="pc-num">${d.number!=null?esc(d.number):"--"}</span></div>${miniCourt(d.pos,acc)}</div>
-      <div class="pc-id">${d.pfp?`<img class="pc-pfp" src="${d.pfp}" alt="">`:`<span class="pc-pfp pc-ini">${esc(ini)}</span>`}<div><b class="pc-name">${esc(name)}</b><span>${esc(posL)}${d.exp?" · "+esc(d.exp):""}</span></div></div>
+      <div class="pc-id">${d.pfp?`<img class="pc-pfp" src="${d.pfp}" alt="">`:`<span class="pc-pfp pc-ini">${esc(ini)}</span>`}<div>${d.title?`<em class="pc-title">${esc(d.title)}</em>`:""}<b class="pc-name">${esc(name)}</b><span>${esc(posL)}${d.exp?" · "+esc(d.exp):""}</span></div></div>
       <div class="pc-stats"><div><b>${s.vert!=null?VB.lenOut(s.vert):"–"}</b><span>Vert ${VB.lu()}</span></div><div><b>${s.sess28!=null?s.sess28:"–"}</b><span>Sess 28d</span></div><div><b>${s.streak!=null?s.streak:"–"}</b><span>Streak</span></div><div><b>${lvl}</b><span>Drill lvl</span></div></div>
       <div class="pc-sheen"></div>
     </div>
@@ -130,7 +132,7 @@ function closeModal(){$("#modal").hidden=true;$("#mbody").innerHTML="";document.
 VB.closeModal=closeModal;
 
 /* ---------- my card data ---------- */
-VB.myCard=function(){const p=VB.state.profile||{},st=VB.squad&&VB.squad.myStats?VB.squad.myStats():{};return {uid:VB.net&&VB.net.uid,nick:p.name||"",number:p.number,pos:p.pos||"any",exp:p.exp||"",look:p.look||null,hand:p.hand||"right",stats:st,pfp:VB.media.pfp,bg:VB.media.bg,accent:VB.media.accent};};
+VB.myCard=function(){const p=VB.state.profile||{},st=VB.squad&&VB.squad.myStats?VB.squad.myStats():{};return {uid:VB.net&&VB.net.uid,nick:p.name||"",number:p.number,pos:p.pos||"any",exp:p.exp||"",look:p.look||null,hand:p.hand||"right",stats:st,pfp:VB.media.pfp,bg:VB.media.bg,accent:VB.media.accent,title:VB.crow?VB.crow.titleText():""};};
 
 /* ---------- photo editor ---------- */
 let ed=null;
@@ -149,7 +151,7 @@ function edRender(){if(!ed)return;$$("#edTabs button").forEach(b=>b.setAttribute
      ${VB.media.pfp&&!ed.img?`<div class="row"><button type="button" class="btn sm" id="pfRemove">Remove my photo</button></div>`:""}<p class="err" id="edErr" role="alert" hidden></p></div></div>`;
     drawCrop();bindCrop("cropCv","pf");}
   else if(ed.tab==="bg"){body.innerHTML=`<div class="stack" style="gap:12px"><div class="cropwrap wide"><canvas id="bgCv" width="1200" height="480" aria-label="Background preview"></canvas></div>
-     <div class="chips">${BGMODES.map(([k,l])=>`<button type="button" class="chip" data-bm="${k}" aria-pressed="${ed.bgMode===k}" ${k==="photo"&&!VB.media.pfp&&!ed.img?"disabled":""}>${l}</button>`).join("")}</div>
+     <div class="chips">${BGMODES.concat(VB.crow&&VB.crow.on()?Object.entries({crowgym:"Crow gym",orange:"Orange court",sky:"Night sky court"}).filter(([k])=>VB.crow.owned().bg.includes(k)):[]).map(([k,l])=>`<button type="button" class="chip" data-bm="${k}" aria-pressed="${ed.bgMode===k}" ${k==="photo"&&!VB.media.pfp&&!ed.img?"disabled":""}>${l}</button>`).join("")}</div>
      ${ed.bgMode==="photo"&&!VB.media.pfp?`<p class="small muted">Add a profile photo first. This background is built from its colours.</p>`:""}
      ${ed.bgMode==="upload"?`<div class="row"><label class="btn filebtn">Choose a background photo<input type="file" accept="image/*" id="bgFile"></label>${ed.bgImg?`<label class="f" style="flex:1;min-width:160px">Zoom<input type="range" id="bgZoom" min="1" max="4" step=".01" value="${ed.bgZoom}"></label>`:""}</div>
        ${ed.bgImg?`<div class="chips">${FILTERS.map(([k,l])=>`<button type="button" class="chip" data-bf="${k}" aria-pressed="${ed.bgFilter===k}">${l}</button>`).join("")}</div><p class="small muted">Drag the photo to position it.</p>`:""}`:""}
@@ -158,7 +160,7 @@ function edRender(){if(!ed)return;$$("#edTabs button").forEach(b=>b.setAttribute
   else{const pal=VB.media.pfp?ed.pal||[]:[];body.innerHTML=`<div class="stack" style="gap:14px"><p class="small muted">Your card colour tints your profile, your card's 3D figure and the generated backgrounds.</p>
      <div class="swatches"><button type="button" class="sw" data-acc="" aria-pressed="${!ed.accent}" style="--c:${(VB.THEMES[(VB.state.profile||{}).pos||"any"]||{c:"#d8b25a"}).c}"><i></i>Position colour</button>
      ${pal.map(c=>`<button type="button" class="sw" data-acc="${c}" aria-pressed="${ed.accent===c}" style="--c:${c}"><i></i>From photo</button>`).join("")}
-     ${["#e0483f","#f2c14a","#ff7a3d","#4fe0a8","#5cc8ff","#b79bff","#ff7aa8","#f4f1e8"].map(c=>`<button type="button" class="sw dot" data-acc="${c}" aria-pressed="${ed.accent===c}" style="--c:${c}" aria-label="Colour ${c}"><i></i></button>`).join("")}</div>
+     ${["#e0483f","#f2c14a","#ff7a3d","#4fe0a8","#5cc8ff","#b79bff","#ff7aa8","#f4f1e8"].concat(VB.crow&&VB.crow.on()?[VB.crow.accent()]:[]).map(c=>`<button type="button" class="sw dot" data-acc="${c}" aria-pressed="${ed.accent===c}" style="--c:${c}" aria-label="Colour ${c}"><i></i></button>`).join("")}</div>
      ${VB.media.pfp?"":`<p class="small muted">Add a profile photo to get colours picked from it.</p>`}
      <div class="row"><button type="button" class="btn primary" id="accSave">Save colour</button></div></div>`;
     if(VB.media.pfp&&!ed.pal)dataImage(VB.media.pfp).then(im=>{if(im&&ed){ed.pal=palette(im);if(ed.tab==="color")edRender();}});}}
@@ -225,7 +227,7 @@ VB.openPlayer=async function(id){id=VB.safeUid(id);if(!id)return;const mine=VB.n
   if(!VB.net){$("#pmCard").innerHTML=`<div class="card"><p>Open this page inside Claude while signed in to see other players' cards.</p></div>`;return;}
   let doc=null;try{const s=await VB.net.db.doc("players/"+id).get();doc=s.exists?VB.cleanCard(s.data()):null;}catch(e){}
   if(!doc){$("#pmCard").innerHTML=`<div class="card"><h3>Card not found</h3><p class="small muted">This player has removed their card, or the code is from a page you cannot open.</p></div>`;return;}
-  const md=await VB.mediaOf(id)||{};const d={uid:id,nick:doc.nick,number:doc.number,pos:doc.pos,exp:doc.exp,look:doc.look||null,hand:doc.hand||"right",stats:doc.stats||{},pfp:md.pfp,bg:md.bg,accent:md.accent};
+  const md=await VB.mediaOf(id)||{};const d={uid:id,nick:doc.nick,title:doc.title||"",number:doc.number,pos:doc.pos,exp:doc.exp,look:doc.look||null,hand:doc.hand||"right",stats:doc.stats||{},pfp:md.pfp,bg:md.bg,accent:md.accent};
   VB.renderCard($("#pmCard"),d);const cp=VB.compat((VB.state.profile||{}).pos,doc.pos),rel=VB.squad.relation(id);
   $("#pmSide").innerHTML=`<div class="stat">${esc((VB.POS[doc.pos]||VB.POS.any).label)}</div><h3>${esc(doc.nick||"Player")}${doc.number!=null?" · "+esc(doc.number):""}</h3>
     <div class="fitbox"><div class="row" style="justify-content:space-between"><span class="stat">Position fit with you</span><span class="fit f${cp[0]}">${cp[0]} / 5</span></div><p class="small">${esc(cp[1])}</p><p class="small"><span class="grp">Train together</span> ${cp[2].map(s=>VB.SKILLS[s]).join(" · ")}</p></div>
@@ -242,10 +244,10 @@ VB.profile=(function(){let cardApi=null;
      <div class="ptbig" aria-hidden="true">${words.map(w=>`<span>${esc(w)}</span>`).join("")}</div>
      <div class="ptbtns"><button type="button" class="btn sm" data-ed="bg">Change background</button><button type="button" class="btn sm" data-ed="color">Card colour</button></div>
      <div class="ptcenter"><button type="button" class="ptcircle" data-ed="photo" aria-label="Change profile photo">${VB.media.pfp?`<img src="${VB.media.pfp}" alt="">`:`<span class="ini">${esc(ini)}</span>`}</button>
-      <div class="pttext"><div class="role">${esc(posL)}${p.number!=null?" · No. "+esc(p.number):""}</div><h1 class="pname">${esc(p.name||"Your profile")}</h1><p>${esc(p.exp?p.exp[0].toUpperCase()+p.exp.slice(1):"")} · ${esc(VB.activeProgram().def.name)}</p>
+      <div class="pttext">${VB.crow&&VB.crow.titleText()?`<div class="ptitle">${esc(VB.crow.titleText())}</div>`:""}<div class="role">${esc(posL)}${p.number!=null?" · No. "+esc(p.number):""}</div><h1 class="pname">${esc(p.name||"Your profile")}</h1><p>${esc(p.exp?p.exp[0].toUpperCase()+p.exp.slice(1):"")} · ${esc(VB.activeProgram().def.name)}</p>
        <button type="button" class="arrowlink" data-ed="photo"><span>${VB.media.pfp?"Edit photo":"Add a photo"}</span><i aria-hidden="true">→</i></button></div></div>`;
     const ch=$("#cardHost");if(ch){cardApi=VB.renderCard(ch,d);}
-    const ql=$("#cardLink");if(ql)ql.hidden=!d.uid;}
+    const ql=$("#cardLink");if(ql)ql.hidden=!d.uid;VB.crow&&VB.crow.renderCodeCard();}
   document.addEventListener("click",e=>{const b=e.target.closest("[data-ed]");if(b&&b.closest("#v-profile")){openEditor(b.dataset.ed);return;}
     if(e.target.closest("#cardFlip")){if(cardApi){const f=cardApi.flip();e.target.closest("#cardFlip").textContent=f?"Show the front":"Show my code";}}
     if(e.target.closest("#cardLink")){const d=VB.myCard();if(!d.uid)return;navigator.clipboard.writeText(VB.cardLink(d.uid)).then(()=>VB.ui.toast("Card link copied. Send it to a teammate."),()=>VB.ui.toast("Copying was blocked. Show them your code instead."));}

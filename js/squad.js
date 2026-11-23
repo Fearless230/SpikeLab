@@ -37,14 +37,14 @@ function suggestDrills(skills,n,lvl){const cat=n<=1?0:n===2?1:n<=5?2:3;
     .sort((a,b)=>(VB.PLAYERS[b.players]-VB.PLAYERS[a.players])||Math.abs(a.level-lvl)-Math.abs(b.level-lvl)||skills.indexOf(a.skill)-skills.indexOf(b.skill)).slice(0,6);}
 
 VB.squad=(function(){
-  let tab="teams",selTeam=null,rot=1,thread=null,draft="",teamDraft=null,root,players={},profs={},me=null,status="wait",pushT=0,lastPush="",metric="vert",pick={friends:[],drills:null},filter="",medias={},mediaPushed=0,mediaAts={},rT=0;
+  let tab="teams",selTeam=null,rot=1,thread=null,draft="",teamDraft=null,root,players={},profs={},me=null,status="wait",netErr=0,pushT=0,lastPush="",metric="vert",pick={friends:[],drills:null},filter="",medias={},mediaPushed=0,mediaAts={},rT=0;
   const soc=()=>{const s=VB.state;if(!s.social||typeof s.social!=="object")s.social={};const o=s.social;o.friends=o.friends||[];o.shares=o.shares||[];o.meets=o.meets||[];o.rsvp=o.rsvp||{};o.teams=o.teams||[];o.msgs=o.msgs||[];o.seen=o.seen||{};o.teamJoins=Array.isArray(o.teamJoins)?o.teamJoins:[];o.teamDeclines=Array.isArray(o.teamDeclines)?o.teamDeclines:[];return o;};
   const uid=()=>VB.net&&VB.net.uid;
   const POSL=p=>(VB.POS[p]||VB.POS.any).label;
   function stats(){const st=VB.state,from=VB.addDays(VB.today(),-28),T=st.tests.filter(t=>t.kind==="vert").sort((a,b)=>a.date<b.date?-1:1);let n=0,m=0;
     st.sessions.forEach(s=>{if(s.date>=from&&!s.ex){n++;m+=s.mins||0;}});const lv={};Object.entries(st.drill).forEach(([k,v])=>{if(v&&v.lvl)lv[k]=v.lvl;});
     return {vert:T.length?Math.round(T[T.length-1].cm*10)/10:null,best:T.length?Math.round(Math.max(...T.map(t=>t.cm))*10)/10:null,sess28:n,min28:m,streak:VB.streak(),lv,fixed:Object.values(st.faults).filter(f=>f&&!f.open).length,prog:VB.activeProgram().def.name};}
-  function card(){const p=VB.state.profile||{},o=soc();return {v:1,mediaAt:(VB.media&&(VB.media.pfp||VB.media.bg))?VB.media.at:0,nick:(p.name||"").slice(0,40),number:p.number==null?null:p.number,pos:p.pos||"any",exp:p.exp||"",look:p.look||null,hand:p.hand||"right",stats:stats(),friends:o.friends.slice(0,200),shares:o.shares.slice(0,20),meets:o.meets.slice(0,20),rsvp:o.rsvp,teams:o.teams.slice(0,6),teamsJoined:o.teamJoins.slice(0,20),ready:VB.sharedReadiness?VB.sharedReadiness():null,teamStats:VB.sharedTeamStats?VB.sharedTeamStats():[],adone:o.adone||{},msgs:threaded()?[]:o.msgs.slice(0,80),vis:VB.minor()?"friends":((VB.state.privacy||{}).cardVis||"friends"),minor:VB.minor()};}
+  function card(){const p=VB.state.profile||{},o=soc();return {v:1,mediaAt:(VB.media&&(VB.media.pfp||VB.media.bg))?VB.media.at:0,nick:(p.name||"").slice(0,40),title:VB.crow?VB.crow.titleText():"",number:p.number==null?null:p.number,pos:p.pos||"any",exp:p.exp||"",look:p.look||null,hand:p.hand||"right",stats:stats(),friends:o.friends.slice(0,200),shares:o.shares.slice(0,20),meets:o.meets.slice(0,20),rsvp:o.rsvp,teams:o.teams.slice(0,6),teamsJoined:o.teamJoins.slice(0,20),ready:VB.sharedReadiness?VB.sharedReadiness():null,teamStats:VB.sharedTeamStats?VB.sharedTeamStats():[],adone:o.adone||{},msgs:threaded()?[]:o.msgs.slice(0,80),vis:VB.minor()?"friends":((VB.state.privacy||{}).cardVis||"friends"),minor:VB.minor()};}
   function push(){if(!VB.net||!soc().joined)return;const c=card(),j=JSON.stringify(c);if(j===lastPush)return;lastPush=j;c.at=Date.now();
     VB.net.db.doc("players/"+uid()).set(c).catch(e=>{if(e&&e.code==="invalid_argument"){status="readonly";render();}});
     pushThreads();
@@ -70,7 +70,9 @@ VB.squad=(function(){
     VB.net.db.collection("players").onSnapshot(async snap=>{const next={};snap.docs.forEach(d=>{const id=VB.safeUid(d.id),v=id&&VB.cleanCard(d.data());if(v)next[id]=v;});players=next;
       Object.keys(players).forEach(id=>{const a=players[id].mediaAt||0;if(mediaAts[id]!==undefined&&mediaAts[id]!==a){VB.mediaForget&&VB.mediaForget(id);delete medias[id];}mediaAts[id]=a;});
       try{profs=await VB.net.user.profiles(Object.keys(players));}catch(e){}
-      if(soc().joined&&uid()&&!players[uid()])schedule();render();},()=>{status="off";render();});
+      netErr=0;if(soc().joined&&uid()&&!players[uid()])schedule();render();},
+      /* a failed refresh (no signal, or the device just woke up) is not a sign-out: keep what is on screen and retry */
+      ()=>{netErr++;render();});
     if(threaded()&&!inboxOff)inboxOff=VB.net.db.inbox.onSnapshot(list=>{inboxMsgs=[];list.forEach(d=>{if(d.from===uid()||!d.th||!VB.safeUid(d.from))return;(Array.isArray(d.msgs)?d.msgs:[]).slice(0,80).forEach(m=>{if(m&&m.th===d.th)inboxMsgs.push({id:VB.safeId(m.id)||"x",th:m.th,text:VB.safeText(m.text,300),at:+m.at||0,from:d.from});});});clearTimeout(rT);rT=setTimeout(render,120);});
     if(soc().joined)schedule();}
   const lvlAvg=s=>{const v=Object.values((s&&s.lv)||{});return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length*10)/10:null;};
@@ -102,6 +104,9 @@ VB.squad=(function(){
     if(status==="wait"){root.innerHTML=`<div class="card"><p class="muted">Checking your account.</p></div>`;return;}
     if(VB.child()){root.innerHTML=`<div class="card"><div class="kicker">Squad is for players 12 and older</div><p>Friends, teams and chat need an account, so they are switched off for players under 12. Your training plan, sessions and film all keep working, saved on this device.</p><p class="small muted">Ask your coach to share drills with you, or train together with a parent or guardian.</p></div>`;return;}
     if(status==="off"){const bk=VB.backend;
+      /* signed in, but the app started without the account (for example offline when it opened): reconnect */
+      if(bk&&bk.session){root.innerHTML=`<div class="card"><div class="kicker">Squad isn't connected</div><p>You're signed in as <b>${esc(bk.session.user.email||"")}</b>, but Squad couldn't connect when the app opened. Reconnect to load your friends and teams.</p><div class="row"><button class="btn primary" type="button" data-reconnect="1">Reconnect</button></div></div>`;
+        root.querySelector("[data-reconnect]").onclick=()=>location.reload();return;}
       root.innerHTML=bk?`<div class="card"><div class="kicker">Log in to use Squad</div><p>Friends, teams, chat and joint sessions need a free account, so your teammates can find you.</p><p class="small muted">Everything you have logged on this device moves into your account when you sign in.</p><div class="row"><button class="btn primary" type="button" data-auth="in">Log in</button><button class="btn" type="button" data-auth="up">Create an account</button></div></div>`
         :/(^|\.)claude\.(ai|site)$|claudeusercontent/.test(location.hostname)?`<div class="card"><div class="kicker">Sign in to use Squad</div><p>Friends, sharing and joint sessions use your Claude account as your login. Open this page inside Claude while signed in.</p><p class="small muted">Your own training data keeps working without it.</p></div>`
         :`<div class="card"><div class="kicker">Squad is not set up on this site yet</div><p>Accounts are switched off, so friends, teams and chat are not available. Your own training keeps working and is saved on this device.</p></div>`;
@@ -192,7 +197,7 @@ VB.squad=(function(){
     const pane={teams:invHTML+teamsHTML,friends:`<div class="cols even"><div class="stack">${friendsHTML}</div><div class="stack">${compareHTML}${sharedHTML}</div></div>`,events:planHTML,chat:chatHTML}[tab];
     const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart;
     const stage=document.getElementById("teamStage");if(stage&&VB.team3d)VB.team3d.park();
-    root.innerHTML=`${acct}<nav class="sqtabs" role="tablist">${tabs.map(([k,l,b])=>`<button type="button" role="tab" data-tab="${k}" aria-selected="${tab===k}"><span>${l}</span>${b!==""?`<i>${b}</i>`:""}</button>`).join("")}</nav><div class="sqpane" data-pane="${tab}">${pane}</div>`;
+    root.innerHTML=`${netErr>=2?`<p class="note" role="status">Can't reach Squad right now, so this may be out of date. It reconnects by itself.</p>`:""}${acct}<nav class="sqtabs" role="tablist">${tabs.map(([k,l,b])=>`<button type="button" role="tab" data-tab="${k}" aria-selected="${tab===k}"><span>${l}</span>${b!==""?`<i>${b}</i>`:""}</button>`).join("")}</nav><div class="sqpane" data-pane="${tab}">${pane}</div>`;
     if(tab==="teams"&&cur&&VB.team3d){const info={};membersOf(cur.t).forEach(id=>{const c=id===u?VB.myCard():(players[id]||{}),m=id===u?{pfp:VB.media&&VB.media.pfp}:(medias[id]||{});info[id]={name:id===u?(VB.state.profile.name||"You"):(c.nick||nameOf(id)),pos:posOf(id),number:c.number,look:c.look,hand:c.hand,pfp:(m&&m.pfp)||(profs[id]&&profs[id].avatarUrl)||null,me:id===u};});
       VB.team3d.show($("#teamStage",root),{team:cur.t,info,rot,color:cur.t.color||"#ec3b52"});}
     if(tab==="chat"&&curT){const box=$("#msgs",root);if(box)box.scrollTop=box.scrollHeight;const last=curT.last;if(last&&last.at>(soc().seen[curT.th]||0)){soc().seen[curT.th]=last.at;VB.save();}}

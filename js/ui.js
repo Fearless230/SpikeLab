@@ -15,7 +15,8 @@ const THEMES={
  libero:{c:"#ff5fa2",rgb:"255,95,162",ink:"#ffffff",t:["Nothing","drops"],line:"Read it. Reach it. Keep it alive."},
  any:{c:"#ec3b52",rgb:"236,59,82",ink:"#ffffff",t:["Earn","every point"],line:"Learn every skill. Find your place on the court."}};
 VB.THEMES=THEMES;
-const theme=()=>THEMES[(VB.state.profile&&VB.state.profile.pos)||"any"]||THEMES.any;
+/* the secret Karasuno skin (crows.js) swaps the position colour for crow orange */
+const theme=()=>{const t=THEMES[(VB.state.profile&&VB.state.profile.pos)||"any"]||THEMES.any;const a=document.documentElement.dataset.skin==="crow"&&VB.crow&&VB.crow.on()?VB.crow.PEOPLE[VB.state.crow.who||"augustin"].col:null;return a?Object.assign({},t,{c:a.a,rgb:a.rgb}):t;};
 
 /* ---------- toast ---------- */
 let toastT=0,undoFn=null;
@@ -24,12 +25,13 @@ $("#toastUndo").onclick=()=>{if(undoFn)undoFn();$("#toast").hidden=true;};
 VB.onSync=s=>{const el=$("#sync");el.dataset.s=s;el.textContent=s==="cloud"?"Saved to your account":s==="device"?"Saved in this browser":"Loading";};
 
 /* ---------- routing ---------- */
-const VIEWS=["today","body","skills","film","plan","squad","progress","profile","tools"];
+const VIEWS=["today","body","skills","film","plan","squad","progress","profile","tools","nest"];
 let pendingScan=null;
 let view="today";
 function route(){let h=location.hash.replace("#","");
   if(/^p-/.test(h)){pendingScan=VB.decId(h.slice(2));h=S().profile?"squad":"";try{history.replaceState(null,"","#"+h);}catch(e){}if(VB.net!==undefined)setTimeout(openPending,50);}
   VB.subview=h.split("/")[1]||"";h=h.split("/")[0];
+  if(h==="nest"&&!(VB.crow&&VB.crow.on()))h="profile";
   if(!S().profile){view="start";}else view=VIEWS.includes(h)?h:"today";
   ["start",...VIEWS].forEach(v=>{$("#v-"+v).hidden=v!==view;});
   $("#nav").hidden=!S().profile;
@@ -45,8 +47,9 @@ function route(){let h=location.hash.replace("#","");
   if(view==="progress")renderProgress();
   if(view==="profile"){renderReach();VB.profile.render();}
   if(view==="tools"&&VB.tools)VB.tools.show(VB.subview);
+  if(view==="nest"&&VB.crow)VB.crow.render(VB.subview);
   window.scrollTo(0,0);}
-const WNAME={today:["Game","Day"],body:["Build","Your Body"],skills:["Learn","Skills"],film:["Film","Room"],plan:["Your","Programs"],squad:["Your","Squad"],progress:["Track","Progress"],profile:["Player","Card"],tools:["Your","Toolkit"],start:["Start","Journey"]};
+const WNAME={today:["Game","Day"],body:["Build","Your Body"],skills:["Learn","Skills"],film:["Film","Room"],plan:["Your","Programs"],squad:["Your","Squad"],progress:["Track","Progress"],profile:["Player","Card"],tools:["Your","Toolkit"],nest:["Crow's","Nest"],start:["Start","Journey"]};
 const RM=matchMedia("(prefers-reduced-motion: reduce)");let wipeT=0,wiping=false;
 function reveal(){const v=$("#v-"+view);if(!v)return;let i=0;
   $$(".wrap>h2,.wrap>.kicker,.card,.tile,.pcard,.board,.chips,.cols>*",v).forEach(el=>{if(el.closest(".modal")||el.classList.contains("in"))return;el.classList.add("rv");el.style.setProperty("--i",Math.min(i++,8));io?io.observe(el):el.classList.add("in");});}
@@ -491,7 +494,7 @@ applyProfile();
 if(S().profile){const pos=VB.POS[S().profile.pos];if(pos){const m={attack:"spike",pass:"pass",set:"set",block:"block",serve:"float",dig:"dig"}[pos.skills[0]];if(m&&T[m])curTech=m;}}
 route();if(RM.matches)reveal();else setTimeout(reveal,1450);setTimeout(()=>{const l=$("#loader");l&&l.remove();},2800);
 function loop(now){if(view==="body")VB.body.frame();else if(view==="skills"){VB.court.frame(now);if(!scrubbing&&VB.court.playing())$("#cScrub").value=Math.round(VB.court.frac()*1000);{const ph=$("#cPhase"),t=VB.court.phase();if(ph&&ph.textContent!==t)ph.textContent=t;}}else if(view==="film")VB.film.frame();else if(view==="squad"&&VB.team3d)VB.team3d.frame(now);else if(view==="profile"&&VB.lockerFrame)VB.lockerFrame(now);else if(view==="today"||view==="start")VB.hero.frame(now);
-  if(view==="profile"||!$("#modal").hidden)VB.cardFrame(now);requestAnimationFrame(loop);}
+  if(view==="profile"||view==="nest"||!$("#modal").hidden)VB.cardFrame(now);requestAnimationFrame(loop);}
 requestAnimationFrame(loop);
 VB.initCloud(()=>{applyProfile();form.parentNode&&form.parentNode.removeChild(form);document.body.appendChild(form);form.hidden=true;route();});
 })();

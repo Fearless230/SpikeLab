@@ -27,7 +27,7 @@ VB.safeText=(v,n)=>typeof v==="string"?v.slice(0,n||200):"";
 VB.cleanMedia=m=>{if(!m||typeof m!=="object")return null;return {pfp:VB.safeImg(m.pfp),bg:VB.safeImg(m.bg),accent:VB.safeColor(m.accent),at:+m.at||0};};
 VB.cleanCard=function(c){if(!c||typeof c!=="object")return null;const ids=(a,n,f)=>(Array.isArray(a)?a:[]).map(f||VB.safeUid).filter(Boolean).slice(0,n);
   const num=v=>typeof v==="number"&&isFinite(v)?v:null,out=Object.assign({},c);
-  out.nick=VB.safeText(c.nick,40);out.number=num(c.number)!=null?Math.round(c.number)%1000:null;out.pos=VB.POS&&VB.POS[c.pos]?c.pos:"any";
+  out.nick=VB.safeText(c.nick,40);out.title=VB.safeText(c.title,32);out.number=num(c.number)!=null?Math.round(c.number)%1000:null;out.pos=VB.POS&&VB.POS[c.pos]?c.pos:"any";
   out.hand=c.hand==="left"?"left":"right";out.exp=VB.safeText(c.exp,30);out.friends=ids(c.friends,400);
   out.teamsJoined=(Array.isArray(c.teamsJoined)?c.teamsJoined:[]).filter(k=>typeof k==="string"&&/^[0-9a-f-]{36}:[A-Za-z0-9_-]{1,64}$/i.test(k)).slice(0,20);
   out.teams=(Array.isArray(c.teams)?c.teams:[]).filter(t=>t&&VB.safeId(t.id)).slice(0,6).map(t=>{const sl={};Object.entries(t.slots||{}).forEach(([k,v])=>{if(/^[A-Z]{1,2}\d?$/.test(k))sl[k]=VB.safeUid(v);});

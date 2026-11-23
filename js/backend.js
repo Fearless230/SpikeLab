@@ -11,34 +11,45 @@ let sb=null,session=null,readyRes,decided=false,decidedVal=null;const ready=new 
 const uid=()=>session&&session.user&&session.user.id;
 function decide(v){if(decided)return;decided=true;decidedVal=v;readyRes(v);}
 
+/* ---------- keeping the sign-in fresh ----------
+   The access token lasts an hour. A phone or laptop that wakes from sleep can ask the database for data before the
+   library has renewed it, and the database refuses. So: renew first when the token is about to run out, and if a request
+   is still refused for an expired token, renew and try once more. A failed request never signs anyone out. */
+let refreshing=null,explicitLogout=false;
+const authErr=e=>!!e&&/jwt|token|expired|unauthori[sz]ed|401|PGRST30[13]/i.test([e.message,e.code,e.status,e.hint].join(" "));
+function fresh(){if(!session)return Promise.resolve();const exp=(session.expires_at||0)*1000;if(exp-Date.now()>60000)return Promise.resolve();
+  if(!refreshing)refreshing=sb.auth.refreshSession().catch(()=>{}).finally(()=>{refreshing=null;});return refreshing;}
+async function q(make){await fresh();let r=await make();if(r&&r.error&&authErr(r.error)){if(!refreshing)refreshing=sb.auth.refreshSession().catch(()=>{}).finally(()=>{refreshing=null;});await refreshing;r=await make();}return r;}
+
 /* ---------- data: one row per document path in the "docs" table ---------- */
 function db(){
   const doc=path=>({
-    async get(){const {data,error}=await sb.from("docs").select("path,data").eq("path",path).maybeSingle();if(error)throw error;return {exists:!!data,data:()=>data?data.data:null,id:path.split("/").pop()};},
-    async set(obj){const {error}=await sb.from("docs").upsert({path,owner:uid(),data:obj,updated_at:new Date().toISOString()});if(error){const e=new Error(error.message);e.code=/too large|payload/i.test(error.message)?"quota_exceeded":"unavailable";throw e;}},
-    async delete(){const {error}=await sb.from("docs").delete().eq("path",path);if(error)throw error;}});
+    async get(){const {data,error}=await q(()=>sb.from("docs").select("path,data").eq("path",path).maybeSingle());if(error)throw error;return {exists:!!data,data:()=>data?data.data:null,id:path.split("/").pop()};},
+    async set(obj){const {error}=await q(()=>sb.from("docs").upsert({path,owner:uid(),data:obj,updated_at:new Date().toISOString()}));if(error){const e=new Error(error.message);e.code=/too large|payload/i.test(error.message)?"quota_exceeded":"unavailable";throw e;}},
+    async delete(){const {error}=await q(()=>sb.from("docs").delete().eq("path",path));if(error)throw error;}});
   const collection=name=>({
-    async get(){const {data,error}=await sb.from("docs").select("path,data").like("path",name+"/%");if(error)throw error;
+    async get(){const {data,error}=await q(()=>sb.from("docs").select("path,data").like("path",name+"/%"));if(error)throw error;
       const rows=(data||[]).filter(r=>r.path.split("/").length===2);return {docs:rows.map(r=>({id:r.path.split("/")[1],data:()=>r.data}))};},
     onSnapshot(cb,onErr){let dead=false,t=0;const self=this;
       const load=()=>{if(dead)return;self.get().then(s=>{if(!dead)cb(s);}).catch(e=>{if(!dead&&onErr)onErr(e);});};
       const soon=()=>{clearTimeout(t);t=setTimeout(load,250);};
       load();const ch=sb.channel("docs-"+name+"-"+Math.random().toString(36).slice(2,7)).on("postgres_changes",{event:"*",schema:"public",table:"docs"},p=>{const path=(p.new&&p.new.path)||(p.old&&p.old.path)||"";if(!path||path.indexOf(name+"/")===0)soon();}).subscribe();
-      const poll=setInterval(load,20000);
-      return ()=>{dead=true;clearInterval(poll);clearTimeout(t);try{sb.removeChannel(ch);}catch(e){}};}});
+      const poll=setInterval(()=>{if(!document.hidden)load();},20000),vis=()=>{if(!document.hidden)soon();};document.addEventListener("visibilitychange",vis);
+      return ()=>{dead=true;clearInterval(poll);clearTimeout(t);document.removeEventListener("visibilitychange",vis);try{sb.removeChannel(ch);}catch(e){}};}});
   /* chat threads I can read (players/<sender>/m/<thread>); the database only returns threads I am part of */
-  const inbox={onSnapshot(cb){let dead=false,t=0;const load=async()=>{if(dead)return;try{const {data,error}=await sb.from("docs").select("path,data").like("path","players/%/m/%");if(!error&&!dead)cb((data||[]).map(r=>({from:r.path.split("/")[1],th:r.data&&r.data.th,msgs:(r.data&&r.data.msgs)||[]})));}catch(e){}};
+  const inbox={onSnapshot(cb){let dead=false,t=0;const load=async()=>{if(dead)return;try{const {data,error}=await q(()=>sb.from("docs").select("path,data").like("path","players/%/m/%"));if(!error&&!dead)cb((data||[]).map(r=>({from:r.path.split("/")[1],th:r.data&&r.data.th,msgs:(r.data&&r.data.msgs)||[]})));}catch(e){}};
       const soon=()=>{clearTimeout(t);t=setTimeout(load,250);};load();
       const ch=sb.channel("docs-inbox-"+Math.random().toString(36).slice(2,7)).on("postgres_changes",{event:"*",schema:"public",table:"docs"},p=>{const path=(p.new&&p.new.path)||(p.old&&p.old.path)||"";if(/^players\/[^/]+\/m\//.test(path))soon();}).subscribe();
-      const poll=setInterval(load,20000);return ()=>{dead=true;clearInterval(poll);clearTimeout(t);try{sb.removeChannel(ch);}catch(e){}};}};
+      const poll=setInterval(()=>{if(!document.hidden)load();},20000),vis=()=>{if(!document.hidden)soon();};document.addEventListener("visibilitychange",vis);
+      return ()=>{dead=true;clearInterval(poll);clearTimeout(t);document.removeEventListener("visibilitychange",vis);try{sb.removeChannel(ch);}catch(e){}};}};
   return {doc,collection,inbox};}
 /* ---------- user: identity, names for friends, and friend search ---------- */
 function user(){const u=session.user,meta=u.user_metadata||{};
   return {
     async id(){return uid();},
     async me(){return {id:u.id,name:meta.name||(u.email||"").split("@")[0],email:u.email,avatarUrl:meta.avatar_url||null};},
-    async profiles(ids){const out={};if(!ids||!ids.length)return out;const {data}=await sb.from("profiles").select("id,name,avatar_url").in("id",ids);(data||[]).forEach(p=>out[p.id]={name:typeof p.name==="string"?p.name.slice(0,60):"",avatarUrl:(VB.safeImg&&VB.safeImg(p.avatar_url))||null});return out;},
-    async search(q){q=(q||"").trim();if(q.length<2)return [];const {data,error}=await sb.rpc("find_players",{q});if(error)throw error;return (data||[]).map(r=>({id:r.id,name:r.name,email:r.email||""}));}};}
+    async profiles(ids){const out={};if(!ids||!ids.length)return out;const {data}=await q(()=>sb.from("profiles").select("id,name,avatar_url").in("id",ids));(data||[]).forEach(p=>out[p.id]={name:typeof p.name==="string"?p.name.slice(0,60):"",avatarUrl:(VB.safeImg&&VB.safeImg(p.avatar_url))||null});return out;},
+    async search(q){q=(q||"").trim();if(q.length<2)return [];const {data,error}=await q(()=>sb.rpc("find_players",{q}));if(error)throw error;return (data||[]).map(r=>({id:r.id,name:r.name,email:r.email||""}));}};}
 async function saveProfileRow(){const u=session.user,meta=u.user_metadata||{};const minor=!!(VB.minor&&VB.minor());try{await sb.from("profiles").upsert({id:u.id,name:meta.name||(u.email||"").split("@")[0],minor,updated_at:new Date().toISOString()});}catch(e){}}
 
 /* the interface core.js asks for; waits until the person has signed in or chosen to stay on this device */
@@ -88,22 +99,33 @@ async function submit(e){e.preventDefault();const f=e.target,v=n=>(f.elements[n]
 function toast(m){if(VB.ui&&VB.ui.toast)VB.ui.toast(m);}
 /* signed-in strip on the profile page with a log out button */
 function acctBar(){const host=document.getElementById("v-profile");if(!host)return;let el=document.getElementById("acctBar");if(!session){if(el)el.remove();return;}
-  if(!el){el=document.createElement("div");el.id="acctBar";el.className="acct";host.insertBefore(el,host.firstChild);el.addEventListener("click",async e=>{if(!e.target.closest("[data-out]"))return;await sb.auth.signOut();try{localStorage.clear();}catch(_){}location.reload();});}
+  if(!el){el=document.createElement("div");el.id="acctBar";el.className="acct";host.insertBefore(el,host.firstChild);el.addEventListener("click",async e=>{if(!e.target.closest("[data-out]"))return;VB.backend.logout();});}
   el.innerHTML=`<span>Signed in as <b>${(session.user.email||"").replace(/</g,"&lt;")}</b></span><button type="button" data-out="1">Log out</button>`;}
 
 /* ---------- boot: load the Supabase library, then restore the session or ask to log in ---------- */
-function boot(){const s=document.createElement("script");s.src="js/vendor/supabase-2.119.2.js";  // a pinned copy kept in the repo: no outside code can change under yous.async=true;
-  s.onload=start;s.onerror=()=>{console.warn("Could not load Supabase. Saving stays on this device.");decide(false);};document.head.appendChild(s);}
+function boot(){const s=document.createElement("script");s.src="js/vendor/supabase-2.119.2.js";s.async=true;  // a pinned copy kept in the repo: no outside code can change under you
+  s.onload=start;s.onerror=()=>{loadFailed=true;console.warn("Could not load Supabase. Saving stays on this device.");decide(false);if(box&&!box.hidden)show(mode,"Couldn't reach the sign-in service. Check your connection and try again.","err");};document.head.appendChild(s);}
+let loadFailed=false;
 async function start(){sb=window.supabase.createClient(C.supabaseUrl,C.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   // Supabase asks that no other Supabase calls run inside this callback, so the follow-up work is deferred
-  sb.auth.onAuthStateChange((ev,s)=>{session=s;setTimeout(()=>{if(ev==="PASSWORD_RECOVERY"){show("newpw");return;}
+  sb.auth.onAuthStateChange((ev,s)=>{const before=uid();session=s;setTimeout(()=>{if(ev==="PASSWORD_RECOVERY"){show("newpw");return;}
     if(s&&!decided){hide();saveProfileRow();decide(true);}
-    if(ev==="SIGNED_IN"&&decided&&s){hide();if(decidedVal===false){location.reload();return;}}
-    if(ev==="SIGNED_OUT"&&decided){try{localStorage.clear();}catch(_){}location.reload();}
+    /* signed in after starting without an account, after being signed out, or as someone else: reload so every part of
+       the app (cloud saving, Squad, chat) connects to the account */
+    else if(ev==="SIGNED_IN"&&decided&&s){hide();if(decidedVal===false||!before||before!==s.user.id){location.reload();return;}}
+    if(ev==="SIGNED_OUT"&&decided){
+      if(explicitLogout)return;
+      /* not chosen by the person (for example the session ran out on this device): keep everything on the device and ask
+         them to log in again, instead of wiping the device */
+      show("in","You were signed out on this device. Log in again to keep saving to your account and use Squad.","err");}
     acctBar();},0);});
-  const {data}=await sb.auth.getSession();session=data.session;
+  try{const {data}=await sb.auth.getSession();session=data.session;}catch(e){console.warn(e);session=null;}
   if(session){saveProfileRow();decide(true);acctBar();}
   else if(!/type=recovery/.test(location.hash))show("in");}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
-VB.backend={saveProfileRow:()=>session&&saveProfileRow(),get client(){return sb;},get session(){return session;},login(m){if(sb)show(m||"in");},async deleteAccount(){if(!sb||!session)throw new Error("Not signed in");const {error}=await sb.rpc("delete_my_account");if(error)throw error;try{await sb.auth.signOut();}catch(e){}try{localStorage.clear();}catch(_){}},logout:async()=>{if(sb)await sb.auth.signOut();try{localStorage.clear();}catch(_){}location.reload();}};
+VB.backend={saveProfileRow:()=>session&&saveProfileRow(),get client(){return sb;},get session(){return session;},login(m){if(session){location.reload();return;}if(sb){show(m||"in");return;}
+    /* the sign-in library is not loaded (offline when the page opened): say so, and try again */
+    show(m||"in",loadFailed?"Connecting to the sign-in service…":"Starting up…","ok");if(loadFailed){loadFailed=false;boot();}},async deleteAccount(){if(!sb||!session)throw new Error("Not signed in");const {error}=await sb.rpc("delete_my_account");if(error)throw error;try{explicitLogout=true;await sb.auth.signOut();}catch(e){}try{localStorage.clear();}catch(_){}},
+  /* logging out on purpose clears this device, so the next person using it starts fresh */
+  logout:async()=>{explicitLogout=true;try{if(sb)await sb.auth.signOut();}catch(e){}try{localStorage.clear();}catch(_){}location.reload();}};
 })();

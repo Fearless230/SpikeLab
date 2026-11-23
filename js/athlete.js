@@ -341,8 +341,8 @@ function curlGeo(g){const P=new Float32Array(g.p),N=g.n;for(let v=0;v<P.length/3
   const r=G.geo(P,new Float32Array(N),g.i,g.uv,null);r.j=g.j;r.w=g.w;r.bs=g.bs;r.n=normals(P,g.i);return r;}
 /* ---------- textures ---------- */
 const TEX={};
-function jerseyTex(col,acc,num){const k="j"+col+acc+num;if(TEX[k])return TEX[k];
-  return TEX[k]=G.canvasTex(512,512,(g,w,h)=>{g.fillStyle=col;g.fillRect(0,0,w,h);
+function jerseyTex(col,acc,num,pat){const k="j"+col+acc+num+(pat||"");if(TEX[k])return TEX[k];
+  return TEX[k]=G.canvasTex(512,512,(g,w,h)=>{g.fillStyle=col;g.fillRect(0,0,w,h);jerseyPattern(g,w,h,pat,acc);
     // side panels (u .25 left, .75 right) in a darker shade, and a thin accent piping along them
     // they stop at the armpit (v about .64): above it the cylindrical mapping wraps round the shoulders and sleeves
     const top=h*(1-.64),dark=G.hex(col).map(v=>Math.round(v*255*.78));g.fillStyle=`rgb(${dark})`;[.25,.75].forEach(u=>{g.fillRect(u*w-22,top,44,h-top);});
@@ -353,6 +353,15 @@ function jerseyTex(col,acc,num){const k="j"+col+acc+num;if(TEX[k])return TEX[k];
     const vy=v=>h*(1-v);if(num!==""&&num!=null){draw(w*.5,vy(.56),62);draw(0,vy(.56),96);draw(w,vy(.56),96);}
     // fabric: a faint mesh weave
     g.globalAlpha=.05;g.fillStyle="#000";for(let y=0;y<h;y+=4)g.fillRect(0,y,w,1);g.globalAlpha=1;},true);}
+/* jersey designs, drawn under the numbers. u runs round the body (front at .5), v from hem (0) to neck (1) */
+function jerseyPattern(g,w,h,pat,acc){if(!pat||pat==="plain")return;const vy=v=>h*(1-v);g.save();
+  if(pat==="band"){g.globalAlpha=.9;g.fillStyle=acc;g.fillRect(0,vy(.47),w,h*.05);g.globalAlpha=.45;g.fillRect(0,vy(.40),w,h*.015);}
+  else if(pat==="sash"){g.globalAlpha=.55;g.fillStyle=acc;[[0,.5],[.5,1]].forEach(([a,b])=>{g.beginPath();g.moveTo(w*a,vy(.62));g.lineTo(w*(a+.1),vy(.62));g.lineTo(w*b,vy(.05));g.lineTo(w*(b-.1),vy(.05));g.closePath();g.fill();});}
+  else if(pat==="bolt"){g.globalAlpha=.75;g.fillStyle=acc;[.25,.75].forEach(u=>{const x=u*w;g.beginPath();g.moveTo(x-6,vy(.64));g.lineTo(x+22,vy(.64));g.lineTo(x+4,vy(.38));g.lineTo(x+26,vy(.38));g.lineTo(x-14,vy(.02));g.lineTo(x-2,vy(.30));g.lineTo(x-22,vy(.30));g.closePath();g.fill();});}
+  else if(pat==="chevron"){g.globalAlpha=.5;g.strokeStyle=acc;g.lineWidth=14;[.18,.3].forEach(v=>{for(const c of [0,.5,1]){g.beginPath();g.moveTo(w*(c-.18),vy(v+.1));g.lineTo(w*c,vy(v));g.lineTo(w*(c+.18),vy(v+.1));g.stroke();}});}
+  else if(pat==="stripes"){g.globalAlpha=.16;g.fillStyle=acc;for(let x=0;x<w;x+=28)g.fillRect(x,0,10,h);}
+  else if(pat==="fade"){const gr=g.createLinearGradient(0,vy(.65),0,vy(0));gr.addColorStop(0,"rgba(0,0,0,0)");gr.addColorStop(1,acc);g.globalAlpha=.55;g.fillStyle=gr;g.fillRect(0,vy(.65),w,h*.65);}
+  g.restore();}
 function shortsTex(col,acc){const k="s"+col+acc;if(TEX[k])return TEX[k];
   return TEX[k]=G.canvasTex(256,256,(g,w,h)=>{g.fillStyle=col;g.fillRect(0,0,w,h);g.fillStyle=acc;[.25,.75].forEach(u=>g.fillRect(u*w-5,0,10,h));
     g.globalAlpha=.08;g.fillStyle="#000";g.fillRect(0,0,w,h*.1);g.globalAlpha=1;},true);}
@@ -364,14 +373,19 @@ function hairTex(){if(TEX.hair)return TEX.hair;
 
 /* ---------- build ---------- */
 function build(o){o=Object.assign({jersey:"#ec3b52",accent:"#ffffff",shorts:"#17144d",skin:"#c98d68",hair:"#2b1d16",shoe:"#f4f2ee",sole:"#17144d",number:7,lefty:false,height:1.9,
-    style:"short",build:"athletic",frame:"male",beard:"none",headband:"white",sleeve:"none",sleeveColor:"#17144d",pads:"black",socks:"crew",cut:"short"},o||{});
+    style:"short",build:"athletic",frame:"male",beard:"none",headband:"white",sleeve:"none",sleeveColor:"#17144d",pads:"black",socks:"crew",cut:"short",kit:"club",sockColor:"#f2f2f5",pattern:"plain",shortsColor:""},o||{});
+  if(/^#[0-9a-f]{6}$/i.test(o.shortsColor||""))o.shorts=o.shortsColor;
+  /* kits: "crow" is black with orange numbers and piping, "guardian" is the orange libero top; both override the team colour */
+  if(o.kit==="crow"){o.jersey="#141317";o.accent="#ff7a1a";o.shorts="#141317";}
+  else if(o.kit==="guardian"){o.jersey="#ff7a1a";o.accent="#141317";o.shorts="#141317";}
+  else if(o.kit==="fearless"){o.jersey="#f4f1ea";o.accent="#ff7a1a";o.shorts="#141317";if(o.pattern==="plain")o.pattern="bolt";}
   const w=shapeW(o),heads=headsFor(w),root=new Node(),body=new Node();root.add(body);
   const mix=(a,b,t)=>{const A=G.hex(a),B=G.hex(b);return A.map((v,i)=>v+(B[i]-v)*t);};
   const M=(c,r,extra)=>G.mat(Object.assign({color:c,rough:r==null?.6:r,toon:true,ink:true,inkColor:INK},extra||{}));
-  const bandCol={white:"#ffffff",black:"#1a1a22",team:o.jersey}[o.headband]||"#ffffff";
-  const mt={skin:M(o.skin,.5,{wrap:.45,rim:.4,vcolor:true}),jersey:M("#ffffff",.85,{map:jerseyTex(o.jersey,o.accent,String(o.number==null?"":o.number)),sheen:.45,rim:.32,wrap:.15}),
+  const bandCol={white:"#ffffff",black:"#1a1a22",orange:"#ff7a1a",team:o.jersey}[o.headband]||"#ffffff";
+  const mt={skin:M(o.skin,.5,{wrap:.45,rim:.4,vcolor:true}),jersey:M("#ffffff",.85,{map:jerseyTex(o.jersey,o.accent,String(o.number==null?"":o.number),o.pattern),sheen:.45,rim:.32,wrap:.15}),
     shorts:M("#ffffff",.82,{map:shortsTex(o.shorts,o.accent),sheen:.4,rim:.3,wrap:.15}),hair:M(o.hair,.72,{map:hairTex(),sheen:.4,rim:.35}),hairx:M(o.hair,.8,{sheen:.22,rim:.15}),
-    shoe:M(o.shoe,.45),sole:M(o.sole,.7),pad:M(o.pads==="white"?"#f1f0f5":"#1d1b29",.85,{sheen:.2}),sock:M("#f2f2f5",.9),band:M(bandCol,.7),
+    shoe:M(o.shoe,.45),sole:M(o.sole,.7),pad:M({white:"#f1f0f5",orange:"#ff7a1a"}[o.pads]||"#1d1b29",.85,{sheen:.2}),sock:M(/^#[0-9a-f]{6}$/i.test(o.sockColor)?o.sockColor:"#f2f2f5",.9),band:M(bandCol,.7),
     beard:M(o.beard==="stubble"?mix(o.skin,o.hair,.5):mix(o.hair,o.skin,.12),.95,{polyOffset:o.beard==="stubble",rim:.2,sheen:.1}),sleeve:M(o.sleeveColor||"#17144d",.7),
     eye:M(INK,.25,{ink:false}),iris:M(INK,.3,{ink:false}),pupil:M(INK,.2,{ink:false}),accent:M(o.accent,.7)};
   mt.beard.ink=o.beard!=="stubble";
