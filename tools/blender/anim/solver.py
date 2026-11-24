@@ -125,7 +125,10 @@ class Rig:
         put(f'shin.{Sd}', frame(sd, n) @ self.seg[f'shin.{Sd}'].T)
         put(f'foot.{Sd}', Rf)
         tp = f.get('toe', None)
-        if tp is None: tp = max(0., f['pitch']) if f['y'] < .02 else min(12., max(0, f['pitch']) * .3)
+        if tp is None:
+            # toes stay flat on the floor while the heel peels up, then relax as the foot leaves the ground; blended over
+            # the first 16 cm of foot height so push-off never snaps the toe joint (it used to switch at 2 cm)
+            k = smoothstep(.0, .16, f['y']); tp = max(0., f['pitch']) * (1 - k) + min(12., max(0, f['pitch']) * .3) * k
         put(f'toe.{Sd}', Rf @ Rz(tp * D2R))
 
     def hip_world(self, P, Sd):

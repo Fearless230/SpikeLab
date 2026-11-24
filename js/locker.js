@@ -115,7 +115,7 @@ VB.checkUnlocks=function(){const st=VB.state;if(!st||!st.profile)return;const U=
   if(fresh.length)VB.save&&VB.save();};
 
 /* ---------- locker UI on the profile page ---------- */
-const LOOKS=[["frame","Body",[["male","Broad frame"],["female","Narrow frame"]]],["build","Build",[["lean","Lean"],["athletic","Athletic"],["power","Power"]]],["beard","Facial hair",[["none","None"],["stubble","Stubble"],["moustache","Moustache"],["goatee","Goatee"],["beard","Beard"]]],
+const LOOKS=[["art","Art style",[["real","Realistic"],["anime","Anime"]]],["frame","Body",[["male","Broad frame"],["female","Narrow frame"]]],["build","Build",[["lean","Lean"],["athletic","Athletic"],["power","Power"]]],["beard","Facial hair",[["none","None"],["stubble","Stubble"],["moustache","Moustache"],["goatee","Goatee"],["beard","Beard"]]],
   ["headband","Headband",[["white","White"],["black","Black"],["orange","Orange"],["team","Team colour"],["none","None"]]],["cut","Jersey",[["short","Short sleeves"],["sleeveless","Sleeveless"]]],["pattern","Jersey design",[["plain","Plain"],["band","Chest band"],["sash","Sash"],["bolt","Lightning"],["chevron","Chevrons"],["stripes","Pinstripes"],["fade","Fade"]]],
   ["shortsColor","Shorts",[["","Kit"],["#17144d","Navy"],["#141317","Black"],["#f4f1ea","White"],["#ff7a1a","Orange"]]],
   ["sleeve","Arm sleeve",[["none","None"],["hit","Hitting arm"],["both","Both arms"]]],["sleeveColor","Sleeve colour",[["#17144d","Navy"],["#ffffff","White"],["#111111","Black"],["#ec3b52","Coral"],["#ff7a1a","Orange"]]],
@@ -128,7 +128,7 @@ const COLKEYS=new Set(["shoe","sleeveColor","sockColor","shortsColor"]);
 /* looks can come from other players' cards, so colours are checked and words are kept to known values */
 const hexOk=v=>typeof v==="string"&&/^#[0-9a-f]{6}$/i.test(v);
 VB.lookOpts=function(look){const l=look&&typeof look==="object"?look:{},c=(v,d)=>hexOk(v)?v:d,w=(v,d)=>typeof v==="string"&&/^[a-z]{2,12}$/.test(v)?v:d;
-  return {skin:c(l.skin,"#c98d68"),hair:c(l.hair,"#2b1d16"),style:w(l.style,"short"),build:w(l.build,"athletic"),beard:w(l.beard,"none"),headband:w(l.headband,"white"),cut:w(l.cut,"short"),sleeve:w(l.sleeve,"none"),sleeveColor:c(l.sleeveColor,"#17144d"),pads:w(l.pads,"black"),socks:w(l.socks,"crew"),sockColor:c(l.sockColor,"#f2f2f5"),shoe:c(l.shoe,"#f4f2ee"),frame:w(l.frame,"male"),kit:w(l.kit,"club"),pattern:w(l.pattern,"plain"),shortsColor:c(l.shortsColor,"")};};
+  return {skin:c(l.skin,"#c98d68"),hair:c(l.hair,"#2b1d16"),style:w(l.style,"short"),build:w(l.build,"athletic"),beard:w(l.beard,"none"),headband:w(l.headband,"white"),cut:w(l.cut,"short"),sleeve:w(l.sleeve,"none"),sleeveColor:c(l.sleeveColor,"#17144d"),pads:w(l.pads,"black"),socks:w(l.socks,"crew"),sockColor:c(l.sockColor,"#f2f2f5"),shoe:c(l.shoe,"#f4f2ee"),frame:w(l.frame,"male"),kit:w(l.kit,"club"),pattern:w(l.pattern,"plain"),shortsColor:c(l.shortsColor,""),art:l.art==="anime"?"anime":"real"};};
 let LR=null,LP=null,LC=null;
 function preview(){const ph=document.getElementById("lockPrev");if(!ph)return;try{if(!LR){LC=document.createElement("canvas");LR=VB.GL.renderer(LC,{alpha:true});if(!LR)return;}}catch(e){return;}ph.appendChild(LC);const cv=ph;
   const r=cv.getBoundingClientRect();LR.setSize(Math.max(200,r.width),Math.max(260,r.height),Math.min(2,window.devicePixelRatio||1));

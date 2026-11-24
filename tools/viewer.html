@@ -8,7 +8,7 @@
 <script src="../js/locker.js"></script>
 <script>
 /* Dev viewer for the 3D players.
-   ?clip=spike&t=1.9&view=side|front|back|three&w=640&h=480&look=...json&lefty=1&anim=1
+   ?clip=spike&t=1.9&view=side|front|back|three&w=640&h=480&look=...json&lefty=1&anim=1&art=real|anime
    window.render(t) re-poses deterministically (used by the headless checks in tools/). */
 (function(){
 const q=new URLSearchParams(location.search),G=VB.GL,W=+q.get("w")||640,H=+q.get("h")||480;
@@ -18,13 +18,15 @@ const floor=new G.Node(G.plane(40,40),G.mat({color:"#c98a52",rough:.8}));scene.r
 // court lines for scale: net plane at x=0, 3 m line, end line
 [[0,.06],[-3,.05],[-9,.05]].forEach(([x,w])=>{const n=new G.Node(G.plane(w,9),G.mat({color:"#ffffff",unlit:true}));n.pos=[x,.003,0];scene.root.add(n);});
 const net=new G.Node(G.box(.02,1,9.5),G.mat({color:"#222",transparent:true,opacity:.35}));net.pos=[0,2.43-.5,0];scene.root.add(net);
-const look=Object.assign(VB.lookOpts(JSON.parse(q.get("look")||"{}")),{jersey:q.get("jersey")||"#ec3b52",number:7,lefty:q.get("lefty")==="1",clip:q.get("clip")||"spike"});
+const look=Object.assign(VB.lookOpts(Object.assign({},JSON.parse(q.get("look")||"{}"),q.get("art")?{art:q.get("art")}:{})),{jersey:q.get("jersey")||"#ec3b52",number:7,lefty:q.get("lefty")==="1",clip:q.get("clip")||"spike"});
 const pl=VB.Athlete.player(Object.assign({natural:q.get("natural")!=="0"},look));scene.root.add(pl.root);
 const cam={fov:35,pos:[0,1.4,6],target:[0,1,0]};
 function frameCam(){if((q.get('view')||'')==='face'){const W=pl.a.W,i=VB.Athlete.BONES.indexOf('head'),h=[W.p[i*3],W.p[i*3+1]+.08,W.p[i*3+2]];const d=+q.get('dist')||.75;cam.target=h;cam.pos=[h[0]+d*.85,h[1]+.03,h[2]+d*.45];return;}const P=pl.a.pelvis.pos,v=q.get("view")||"side",d=+q.get("dist")||5.2,ty=Math.max(.95,P[1]);
   const dir={side:[0,0,1],front:[1,0,0],back:[-1,0,0],three:[.7,0,.7],other:[0,0,-1]}[v]||[0,0,1];
   const T=q.get('ty')?+q.get('ty'):ty;cam.target=[P[0],T,P[2]];cam.pos=[P[0]+dir[0]*d,T+(q.get('ty')?.05:.35),P[2]+dir[2]*d];}
 window.render=function(t){pl.snap&&pl.snap();pl.t=t;const P=pl.update(0);frameCam();R.render(scene,cam);document.getElementById("lab").textContent=(q.get("clip")||"spike")+"  t="+t.toFixed(2)+"  "+(pl.label||"");return true;};
+// step(dt): play forward like the app does (runtime layers such as the eased gaze and breathing run), then draw
+window.step=function(dt){pl.update(dt);frameCam();R.render(scene,cam);document.getElementById("lab").textContent=(q.get("clip")||"spike")+"  t="+pl.t.toFixed(2)+"  "+(pl.label||"");return true;};
 window.info=function(){return {dur:pl.clip.dur,contact:pl.clip.contact};};
 window.pl=pl;window.VBready=true;
 if(q.get("anim")==="1"){let t0=performance.now();const loop=()=>{render(((performance.now()-t0)/1000)%pl.clip.dur);requestAnimationFrame(loop);};loop();}

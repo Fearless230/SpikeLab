@@ -8,6 +8,12 @@ OLD_STAND = 1.005           # straight-leg pelvis height of the old rig (legs .9
 
 def sm(t): t = min(1, max(0, t)); return t * t * (3 - 2 * t)
 def lerp(a, b, t): return a + (b - a) * t
+def wrap(d): return (d + 180) % 360 - 180
+def alerp(a, b, t):
+    """Foot yaw between two plants: as authored (the sign of the change says which way the foot turns), except when
+    the authored change is more than 190 deg, which can only be a wrap (180 -> -35): then the shorter way round."""
+    d = b - a
+    return a + (wrap(d) if abs(d) > 190 else d) * t
 
 def track(keys, t):
     if keys is None: return 0.
@@ -50,10 +56,14 @@ def foot_at(plants, t, pel):
                 while j < len(ks) - 2 and s > ks[j + 1][0]: j += 1
                 k0, k1 = ks[j], ks[j + 1]; u = sm((s - k0[0]) / ((k1[0] - k0[0]) or 1))
                 return dict(x=pc[0] + lerp(k0[1], k1[1], u), y=max(0., pc[1] + lerp(k0[2], k1[2], u)), z=pc[2] + lerp(k0[3], k1[3], u),
-                            yaw=lerp(a.get('yaw', 0), b.get('yaw', 0), u), pitch=lerp(k0[4], k1[4], u), knee=.15)
+                            yaw=alerp(a.get('yaw', 0), b.get('yaw', 0), sm(s)), pitch=lerp(k0[4], k1[4], u), knee=.15)   # yaw over the whole flight (it restarted at every air key)
             u = sm(s); h = (a['h'] if a.get('h') is not None else .11) * math.sin(math.pi * min(1, s * 1.05))
-            return dict(x=lerp(a['x'], b['x'], u), y=h, z=lerp(a['z'], b['z'], u), yaw=lerp(a.get('yaw', 0), b.get('yaw', 0), u),
-                        pitch=lerp(a.get('toe', 32), -15 if b.get('heel') else 0, sm(s * 1.3)), knee=a.get('knee', .12))
+            # the swing starts from the pitch the foot left the floor with: heel-peeled (roll) or flat (shuffle steps,
+            # pitchFix stances), so lift-off never snaps the ankle
+            p0 = a['pitchFix'] if a.get('pitchFix') is not None else (a.get('toe', 32) if a.get('roll', True) is not False else 0)
+            p1 = b['pitchFix'] if b.get('pitchFix') is not None else (-15 if b.get('heel') else 0)
+            return dict(x=lerp(a['x'], b['x'], u), y=h, z=lerp(a['z'], b['z'], u), yaw=alerp(a.get('yaw', 0), b.get('yaw', 0), u),
+                        pitch=lerp(p0, p1, sm(s * 1.3)), knee=a.get('knee', .12))
     p = plants[0] if t < plants[0]['t0'] else plants[-1]
     return dict(x=p['x'], y=0., z=p['z'], yaw=p.get('yaw', 0), pitch=0., knee=p.get('knee', .12))
 
@@ -109,6 +119,34 @@ class Clip:
                 if free > 0: a[0] += sg * k * 24 * free; a[3] += abs(k) * 12 * free
         return P
 
+    def gait(self, P, t):
+        """Locomotion arms. Inside the clip's 'gait' windows ([t0, t1, 'walk' | 'jog' | 'run']) the arms stop holding the
+        ready position and swing like a moving athlete's: opposite arm to leg, phase taken from where the feet are,
+        amplitude growing with stride, elbows ~25 deg when walking and ~85-90 deg when running (sprint mechanics)."""
+        W = self.d.get('gait')
+        if not W: return P
+        w, style = 0., 'walk'
+        for g in W:
+            t0, t1 = g[0], g[1]; ramp = g[3] if len(g) > 3 else .22
+            k = sm((t - t0) / ramp) * (1 - sm((t - (t1 - ramp)) / ramp)) if t1 < self.dur - 1e-6 else sm((t - t0) / ramp)
+            if k > w: w, style = k, g[2]
+        if w <= 0: return P
+        yaw = P['yaw'] * D2R; c, s = math.cos(yaw), math.sin(yaw)
+        fx = lambda f: f['x'] * c - f['z'] * s
+        fL, fR = P['foot']['L'], P['foot']['R']
+        ph = max(-1., min(1., (fx(fR) - fx(fL)) / .55))             # +1: right foot forward
+        ph = math.sin(ph * math.pi / 2)                               # ease the ends of the swing
+        sty = dict(walk=dict(f=6, amp=24, e=22, eamp=14, a=12),
+                   jog=dict(f=14, amp=36, e=70, eamp=18, a=10),
+                   run=dict(f=18, amp=48, e=88, eamp=14, a=8))[style]
+        for Sd, sg in (('L', 1), ('R', -1)):
+            a = P['arm'][Sd]; sw = sg * ph                            # left arm forward when the right foot is forward
+            tgt = [sty['f'] + sty['amp'] * sw, sty['a'], 0, sty['e'] + sty['eamp'] * max(0, sw), 0, 75, 28]
+            for j in range(7): a[j] = a[j] + (tgt[j] - a[j]) * w
+        # counter-rotation of the shoulders against the pelvis grows with the arm swing
+        P['twist'] += -ph * {'walk': 5, 'jog': 8, 'run': 11}[style] * w
+        return P
+
     def bake(self, fps=30):
         """Sample at 120 Hz, keep feet reachable, smooth the pelvis and every angle, then solve the skeleton at fps."""
         dt = 1 / 120; n = int(math.ceil(self.dur / dt)); raw = []
@@ -125,7 +163,11 @@ class Clip:
             return X
         X = blur(X, sig.get('pel', .035)); X = passes(X, .015); X = blur(X, .022); X = passes(X, .010); X = blur(X, .010); X = passes(X, .004)
         keys = CH
-        A = np.array([[r[k] for k in keys] for r in raw]); A = blur(A, sig.get('trunk', .028))
+        A = np.array([[r[k] for k in keys] for r in raw])
+        # a clip can end facing the same way after a full turn (yaw +-360): take the whole turns out before the
+        # wrap-around blur so the loop seam is not smeared into a spin, and put them back after
+        jy = keys.index('yaw'); turns = 360 * round((A[-1, jy] - A[0, jy]) / 360); ramp = np.arange(n) / max(1, n - 1) * turns
+        A[:, jy] -= ramp; A = blur(A, sig.get('trunk', .028)); A[:, jy] += ramp
         ARMS = np.array([[v for Sd in ('L', 'R') for v in r['arm'][Sd]] for r in raw]); ARMS = blur(ARMS, sig.get('arm', .018))
         self.samples = []
         out = []
@@ -138,6 +180,7 @@ class Clip:
             av = ARMS[i0] + (ARMS[i1] - ARMS[i0]) * f
             P['arm'] = {'L': list(av[:7]), 'R': list(av[7:])}
             P = self.natural(P)
+            P = self.gait(P, t)
             R, Xb = self.rig.solve(P)
             out.append((to_local(self.rig, R), Xb[0].copy(), R, Xb))
             self.samples.append(P)

@@ -33,9 +33,9 @@ function lookOpts(){const p=(VB.state&&VB.state.profile)||{},base=VB.lookOpts?VB
   return Object.assign({},base,{number:p.number==null?"":p.number,lefty:false,height:1.9,jersey:(VB.myAccent&&VB.myAccent())||base.jersey||"#ec3b52"});}
 function athlete(){const o=lookOpts(),key=JSON.stringify(o);if(ath&&key===lookKey)return ath;if(ath)scene.root.remove?scene.root.remove(ath.root):(scene.root.children=scene.root.children.filter(c=>c!==ath.root));
   ath=A.build(o);ath.root.scl=[1,1,1];lookKey=key;scene.root.add(ath.root);heads=ath.heads;   // skeleton units = scene units, so props and floor match the player
-  const hp=i=>[heads[i*3],heads[i*3+1],heads[i*3+2]];kLen=(len(sub(hp(BI["shin.R"]),hp(BI["thigh.R"])))+len(sub(hp(BI["foot.R"]),hp(BI["shin.R"]))))*(A.KXZ||1)/(PIC.th+PIC.sh);return ath;}
+  const hp=i=>[heads[i*3],heads[i*3+1],heads[i*3+2]];kLen=(len(sub(hp(BI["shin.R"]),hp(BI["thigh.R"])))+len(sub(hp(BI["foot.R"]),hp(BI["shin.R"]))))*(A.kxzOf?A.kxzOf(ath):(A.KXZ||1))/(PIC.th+PIC.sh);return ath;}
 // the skeleton scales the pelvis path by the leg proportions; demos place the pelvis in real units, so undo that
-const placeW=(Wq,root)=>A.applyWorld(ath,Wq,root.map(v=>v/(A.KXZ||1)));
+const placeW=(Wq,root)=>A.applyWorld(ath,Wq,root.map(v=>v/(A.kxzOf?A.kxzOf(ath):(A.KXZ||1))));
 /* ---------- props ---------- */
 function buildProps(def,front){if(propsNode&&propsFor===def)return;if(propsNode)scene.root.children=scene.root.children.filter(c=>c!==propsNode);propsNode=new G.Node();propsFor=def;
   held.forEach(h=>scene.root.children=scene.root.children.filter(c=>c!==h.n));held=[];

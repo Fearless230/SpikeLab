@@ -89,7 +89,19 @@ function bounds(g){if(g.bs)return g.bs;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];
 /* ---------- renderer ---------- */
 const VS=`attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;attribute vec2 aU;attribute vec4 aJ;attribute vec4 aWt;uniform mat4 uM,uVP;uniform mat3 uNM;uniform vec4 uB[99];uniform float uSkin,uInk,uOut;uniform vec3 uCam;varying vec3 vN,vW,vC,vR;varying vec2 vU;
 mat4 bm(float f){int i=int(f+.5)*3;vec4 a=uB[i],b=uB[i+1],c=uB[i+2];return mat4(a.x,b.x,c.x,0.,a.y,b.y,c.y,0.,a.z,b.z,c.z,0.,a.w,b.w,c.w,1.);}
-void main(){vec4 p=vec4(aP,1.);vec3 n=aN;if(uSkin>.5){mat4 m=bm(aJ.x)*aWt.x+bm(aJ.y)*aWt.y+bm(aJ.z)*aWt.z+bm(aJ.w)*aWt.w;p=m*p;n=(m*vec4(aN,0.)).xyz;}vec4 w=uM*p;if(uInk>.5){vec3 nw=normalize(mat3(uM)*n);w.xyz+=nw*uOut*length(uCam-w.xyz);}vW=w.xyz;vN=uNM*n;vC=aC;vU=aU;vR=aP;gl_Position=uVP*w;}`;
+vec3 qr(vec4 q,vec3 v){return v+2.*cross(q.xyz,cross(q.xyz,v)+q.w*v);}
+void dq(float f,float wt,vec4 q0,inout vec4 r,inout vec4 d,inout vec3 lp,inout vec3 ln){int i=int(f+.5)*2;vec4 a=uB[i],b=uB[i+1];float s=dot(a,q0)<0.?-wt:wt;r+=a*s;d+=b*s;
+  /* the same bone as a rigid transform, for the linear blend */
+  lp+=wt*(qr(a,aP)+2.*(a.w*b.xyz-b.w*a.xyz+cross(a.xyz,b.xyz)));ln+=wt*qr(a,aN);}
+void main(){vec4 p=vec4(aP,1.);vec3 n=aN;if(uSkin>1.5){
+  /* dual-quaternion skinning: bones as (rotation, dual) pairs, blended on the same hemisphere as the first bone */
+  /* 40% dual-quaternion, 60% linear blend: the dual quaternion keeps twisted forearms and bent knees and elbows from
+     collapsing, the linear blend keeps the shoulder from ballooning when the arm goes overhead (block, set, spike) */
+  vec4 q0=uB[int(aJ.x+.5)*2],r=vec4(0.),d=vec4(0.);vec3 lp=vec3(0.),ln=vec3(0.);
+  dq(aJ.x,aWt.x,q0,r,d,lp,ln);dq(aJ.y,aWt.y,q0,r,d,lp,ln);dq(aJ.z,aWt.z,q0,r,d,lp,ln);dq(aJ.w,aWt.w,q0,r,d,lp,ln);
+  float l=length(r);r/=l;d/=l;vec3 t=2.*(r.w*d.xyz-d.w*r.xyz+cross(r.xyz,d.xyz));
+  p.xyz=mix(lp,qr(r,aP)+t,.4);n=mix(ln,qr(r,aN),.4);}
+ else if(uSkin>.5){mat4 m=bm(aJ.x)*aWt.x+bm(aJ.y)*aWt.y+bm(aJ.z)*aWt.z+bm(aJ.w)*aWt.w;p=m*p;n=(m*vec4(aN,0.)).xyz;}vec4 w=uM*p;if(uInk>.5){vec3 nw=normalize(mat3(uM)*n);w.xyz+=nw*uOut*length(uCam-w.xyz);}vW=w.xyz;vN=uNM*n;vC=aC;vU=aU;vR=aP;gl_Position=uVP*w;}`;
 /* skinning: up to 33 bones, each a 3x4 affine matrix packed as three rows (keeps the vertex shader inside the
    128-vector uniform budget WebGL guarantees on every phone); 4 bone influences per vertex, weights in aWt. */
 const MAXB=33;
@@ -97,7 +109,7 @@ const FS=`precision highp float;varying vec3 vN,vW,vC,vR;varying vec2 vU;uniform
 float h2(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
 float vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
-uniform vec3 uCol,uEm,uSky,uGnd,uD1,uC1,uD2,uC2,uRimC,uCam,uFogC;uniform float uOp,uRough,uMetal,uUnlit,uMap,uVC,uFogN,uFogF,uShadow,uRim,uSpot,uWrap,uSheen,uExp;uniform vec3 uSpP,uSpC;uniform sampler2D uTex;
+uniform vec3 uCol,uEm,uSky,uGnd,uD1,uC1,uD2,uC2,uRimC,uCam,uFogC;uniform float uGain,uOp,uRough,uMetal,uUnlit,uMap,uVC,uFogN,uFogF,uShadow,uRim,uSpot,uWrap,uSheen,uExp;uniform vec3 uSpP,uSpC;uniform sampler2D uTex;
 void main(){if(uShadow>.5){gl_FragColor=vec4(0.,0.,.02,uOp);return;}
  vec3 base=uCol;if(uVC>.5)base*=vC;float a=uOp;if(uMap>.5){vec4 t=texture2D(uTex,vU);base*=t.rgb;a*=t.a;}if(a<.004)discard;
  vec3 col;
@@ -126,7 +138,7 @@ void main(){if(uShadow>.5){gl_FragColor=vec4(0.,0.,.02,uOp);return;}
   float rim=pow(1.-max(dot(N,V),0.),2.6)*uRim;float sheen=pow(1.-max(dot(N,V),0.),3.)*uSheen;
   vec3 lin=alb*lit*(1.-uMetal*.6)+c1*spec+pow(uRimC,vec3(2.2))*rim*1.4+alb*sheen*.8+pow(max(uEm,vec3(0.)),vec3(2.2))*1.6;
   if(w>.3){lin+=alb*vec3(.9,.25,.15)*pow(max(0.,dot(-N,uD1)*.5+.5),2.)*.12*w;}
-  lin*=uExp;vec3 x=lin;col=clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);col=pow(col,vec3(1./2.2));}
+  lin*=uExp*uGain;vec3 x=lin;col=clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);col=pow(col,vec3(1./2.2));}
  if(uFogF>0.){float f=smoothstep(uFogN,uFogF,length(uCam-vW));col=mix(col,uFogC,f);}
  gl_FragColor=vec4(col,a);}`;
 let CTXID=0,FID=0;
@@ -136,7 +148,7 @@ function renderer(canvas,opt){opt=opt||{};const cid=++CTXID;
   const sh=(t,s)=>{const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(x));return x;};
   const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);if(!gl.getProgramParameter(pr,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(pr));
   gl.useProgram(pr);const A={},U={};["aP","aN","aC","aU","aJ","aWt"].forEach(k=>A[k]=gl.getAttribLocation(pr,k));
-  "uToon uInk uOut uWrap uSheen uExp uSkin uM uVP uNM uCol uEm uSky uGnd uD1 uC1 uD2 uC2 uRimC uCam uFogC uOp uRough uMetal uUnlit uMap uVC uFogN uFogF uShadow uRim uTex uSpot uSpP uSpC".split(" ").forEach(k=>U[k]=gl.getUniformLocation(pr,k));U.uB=gl.getUniformLocation(pr,"uB[0]")||gl.getUniformLocation(pr,"uB");
+  "uGain uToon uInk uOut uWrap uSheen uExp uSkin uM uVP uNM uCol uEm uSky uGnd uD1 uC1 uD2 uC2 uRimC uCam uFogC uOp uRough uMetal uUnlit uMap uVC uFogN uFogF uShadow uRim uTex uSpot uSpP uSpC".split(" ").forEach(k=>U[k]=gl.getUniformLocation(pr,k));U.uB=gl.getUniformLocation(pr,"uB[0]")||gl.getUniformLocation(pr,"uB");
   const white=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,white);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
   function upload(g){g.bufs=g.bufs||{};if(g.bufs[cid]){g.buf=g.bufs[cid];return g.buf;}if(g.i instanceof Uint32Array&&!u32){g.i=new Uint16Array(g.i);}const mk=(d,el)=>{const b=gl.createBuffer();gl.bindBuffer(el?gl.ELEMENT_ARRAY_BUFFER:gl.ARRAY_BUFFER,b);gl.bufferData(el?gl.ELEMENT_ARRAY_BUFFER:gl.ARRAY_BUFFER,d,gl.STATIC_DRAW);return b;};
     g.buf=g.bufs[cid]={p:mk(g.p),n:mk(g.n),c:g.c?mk(g.c):null,u:g.uv?mk(g.uv):null,j:g.j?mk(g.j):null,w:g.w?mk(g.w):null,i:mk(g.i,true),cnt:g.i.length,type:g.i instanceof Uint32Array?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT};return g.buf;}
@@ -181,7 +193,7 @@ function renderer(canvas,opt){opt=opt||{};const cid=++CTXID;
     if(A.aJ>=0){if(b.j){gl.bindBuffer(gl.ARRAY_BUFFER,b.j);gl.enableVertexAttribArray(A.aJ);gl.vertexAttribPointer(A.aJ,4,gl.UNSIGNED_BYTE,false,0,0);}else{gl.disableVertexAttribArray(A.aJ);gl.vertexAttrib4f(A.aJ,0,0,0,0);}}
     if(A.aWt>=0){if(b.w){gl.bindBuffer(gl.ARRAY_BUFFER,b.w);gl.enableVertexAttribArray(A.aWt);gl.vertexAttribPointer(A.aWt,4,gl.UNSIGNED_BYTE,true,0,0);}else{gl.disableVertexAttribArray(A.aWt);gl.vertexAttrib4f(A.aWt,1,0,0,0);}}
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,b.i);}
-  function skin(n){if(n.skin){gl.uniform1f(U.uSkin,1);gl.uniform4fv(U.uB,n.skin.compute(n,FID));}else gl.uniform1f(U.uSkin,0);}
+  function skin(n){if(n.skin){gl.uniform1f(U.uSkin,n.skin.dq?2:1);gl.uniform4fv(U.uB,n.skin.compute(n,FID));}else gl.uniform1f(U.uSkin,0);}
   function draw(n){const m=n.mat,g=n.geo;bind(g);skin(n);gl.uniformMatrix4fv(U.uM,false,n.world);gl.uniformMatrix3fv(U.uNM,false,M4.nrm3(n.world));
     gl.uniform3fv(U.uCol,m.color);gl.uniform3fv(U.uEm,m.emissive);gl.uniform1f(U.uOp,m.opacity);gl.uniform1f(U.uRough,m.rough);gl.uniform1f(U.uMetal,m.metal);gl.uniform1f(U.uUnlit,m.unlit?1:0);gl.uniform1f(U.uRim,m.rim);gl.uniform1f(U.uWrap,m.wrap||0);gl.uniform1f(U.uSheen,m.sheen||0);
     gl.uniform1f(U.uVC,m.vcolor&&g.c?1:0);gl.uniform1f(U.uMap,m.map?1:0);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texOf(m.map));
@@ -190,7 +202,7 @@ function renderer(canvas,opt){opt=opt||{};const cid=++CTXID;
     gl.depthMask(m.depthWrite!==false&&!m.additive);if(m.depthTest===false)gl.disable(gl.DEPTH_TEST);else gl.enable(gl.DEPTH_TEST);
     if(m.double)gl.disable(gl.CULL_FACE);else{gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);}
     if(m.polyOffset){gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(-1,-1);}
-    gl.uniform1f(U.uToon,m.toon?1:0);
+    gl.uniform1f(U.uToon,m.toon?1:0);gl.uniform1f(U.uGain,m.gain||1);
     gl.drawElements(gl.TRIANGLES,g.buf.cnt,g.buf.type,0);
     if(m.polyOffset)gl.disable(gl.POLYGON_OFFSET_FILL);
     // ink outline: the back faces, pushed out along the normal, in the ink colour

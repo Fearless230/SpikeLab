@@ -41,6 +41,7 @@ def retime(c, pts):
     for k in ('contact', 'tTO', 'tLand'):
         if c.get(k) is not None: c[k] = round(m(c[k]), 3)
     c['labels'] = [[round(m(t), 3), s] for t, s in c.get('labels', [])]
+    if c.get('gait'): c['gait'] = [[m(g[0]), m(g[1])] + list(g[2:]) for g in c['gait']]
     c['dur'] = round(m(c['dur']), 3)
     return m
 
@@ -81,7 +82,7 @@ def quick(C):
     del F['R'][1]; del F['L'][1]
     for p in (F['R'][0], F['L'][0]): p['x'] += 1.15
     retime(c, [(0, 0), (.35, .35), (1.28, .80)]); ch = c['ch']
-    F['R'][0]['t1'] = .40; F['L'][0]['t1'] = .84
+    F['R'][0]['t1'] = .40; F['L'][0]['t1'] = .72   # left foot leaves early enough for a realistic swing speed into the plant
     x_old = ch['x']; dur = c['dur']
     ch['x'] = [[0, -2.42], [.35, -2.42], [.6, -2.02]] + [[t / 60, sample(x_old, t / 60)] for t in range(48, int(dur * 60) + 1)]
     pull_back(c, 1.15, c['tLand'] + .5)
@@ -90,10 +91,21 @@ def quick(C):
         ch[S + 'f'] = [[t, v * .4 if (v < 0 and .6 < t < 1.2) else v] for t, v in ch[S + 'f']]
     ch['lean'] = [[t, min(v, 28) if t < 1.2 else v] for t, v in ch['lean']]
     tc = c['contact']; tl = c['tLand']
+    # a middle goes straight back to blocking: after backing off, the hands come up in front of the face, palms to the net
+    # (the block ready position), and they settle back to the attack ready position only at the very end of the loop
+    tb = tl + .75; dur = c['dur']
+    c['gait'] = []   # no jogging arms here: the middle shuffles back with the hands up
+    for S in 'rl':
+        k = lambda n: sample(ch.get(S + n, {'w': 0, 'p': 75}.get(n, 0)), tb)
+        arms(ch, S, tb, f=[[tb, k('f')], [tb + .35, 86], [dur - .45, 86], [dur, sample(ch[S + 'f'], 0)]],
+             a=[[tb, k('a')], [tb + .35, 30], [dur - .45, 30], [dur, sample(ch[S + 'a'], 0)]],
+             e=[[tb, k('e')], [tb + .35, 84], [dur - .45, 84], [dur, sample(ch[S + 'e'], 0)]],
+             w=[[tb, k('w')], [tb + .35, -22], [dur - .45, -22], [dur, sample(ch.get(S + 'w', 0), 0)]],
+             p=[[tb, k('p')], [tb + .35, 145], [dur - .45, 145], [dur, sample(ch.get(S + 'p', 75), 0)]])
     c['labels'] = [[0, "Start off the net, about 3 m from the setter"], [.36, "Step 1 (right) as the pass reaches the setter"],
                    [.78, "Step 2 (left): plant in front of the setter"], [round(c['tTO'] - .03, 3), "Take off before the set"],
                    [round(c['tTO'] + .14, 3), "Arm already up: short, fast swing"], [round(tc - .04, 3), "Contact at the top: snap the wrist"],
-                   [round(tc + .08, 3), "Hit through the seam or cut it"], [round(tl - .02, 3), "Land on both feet"], [round(tl + .4, 3), "Back off the net, block again"]]
+                   [round(tc + .08, 3), "Hit through the seam or cut it"], [round(tl - .02, 3), "Land on both feet"], [round(tl + .4, 3), "Back off the net"], [round(tl + .9, 3), "Hands up: ready to block again"]]
 
 # ---------------------------------------------------------------- shoot / go (fast set to the left pin)
 def shoot(C):
@@ -118,7 +130,7 @@ def tip(C):
     arms(ch, 'r', 1.85,
          f=[[1.9, 160], [1.95, 174], [2.03, 170], [2.14, 150], [2.32, 90], [2.55, 35], [3.0, 30], [4.6, 35]],
          a=[[1.9, 34], [1.95, 10], [2.05, 4], [2.25, 10], [2.6, 15], [4.6, 25]],
-         t=[[1.9, -45], [1.96, 15], [2.1, 22], [2.4, 6], [2.7, 0]],
+         t=[[1.9, 32], [1.96, 15], [2.1, 22], [2.4, 6], [2.7, 0]],
          e=[[1.9, 66], [1.95, 12], [2.0, 6], [2.12, 14], [2.32, 40], [3.0, 55], [4.6, 62]],
          w=[[1.92, -12], [1.97, -8], [2.03, 18], [2.15, 10], [2.4, 0]],
          p=[[1.91, 82], [1.97, 95], [2.12, 95], [2.6, 75]],
@@ -141,7 +153,7 @@ def roll(C):
     arms(ch, 'r', 1.85,
          f=[[1.9, 146], [1.96, 156], [2.02, 158], [2.12, 138], [2.28, 80], [2.5, 30], [3.0, 30], [4.6, 35]],
          a=[[1.9, 44], [1.96, 16], [2.04, 0], [2.16, -10], [2.36, 5], [2.6, 15], [4.6, 25]],
-         t=[[1.9, -55], [1.96, -8], [2.04, 32], [2.16, 40], [2.42, 10], [2.7, 0]],
+         t=[[1.9, 30], [1.96, -8], [2.04, 32], [2.16, 40], [2.42, 10], [2.7, 0]],
          e=[[1.9, 92], [1.96, 32], [2.02, 14], [2.12, 20], [2.32, 40], [3.0, 55], [4.6, 62]],
          w=[[1.9, -45], [1.97, -40], [2.02, -8], [2.08, 42], [2.18, 62], [2.32, 20], [2.5, 0]],
          p=[[1.9, 70], [1.98, 90], [2.12, 110], [2.6, 75]],

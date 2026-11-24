@@ -1,8 +1,10 @@
 /* crows.js: the secret Crow's Nest.
    A secret code on the Profile page unlocks a personal edition for one player: a black-and-colour site skin, kits, volleyballs,
-   ball effects, titles and backgrounds, and the #nest page: a welcome-back boot screen, three mini-games (Dig Defence,
-   Freak Quick, Jump Serve), a volleyball quiz, a daily training camp, a season road against invented rival teams, a skill
-   chart, a weekly goal, badges and a feather shop. Each code belongs to one person (PEOPLE below) with their own colours,
+   ball effects, titles and backgrounds, and the #nest page: a welcome-back boot screen, five arcade games on the engine in
+   crows-arcade.js (Dig Defence, Freak Quick, Jump Serve, Block Party, Setter's Vision: three difficulties, a daily
+   challenge), a volleyball quiz with three modes, a daily training camp with a challenge drill, a two-part season road
+   against invented rival teams, a skill chart, a weekly goal, badges and a feather shop. Extra quiz questions and camp
+   drills live in crows-data.js. Each code belongs to one person (PEOPLE below) with their own colours,
    lines, focus and progress. Progress lives in VB.state.crow, so it saves to the device and the account like everything else. */
 (function(){
 "use strict";
@@ -71,20 +73,72 @@ const who=()=>G().who||"augustin";
 const ME=()=>PEOPLE[who()];
 function C(){const g=G(),id=who();if(!g.people[id]||typeof g.people[id]!=="object")g.people[id]={};const c=g.people[id];
   if(!c.owned||typeof c.owned!=="object")c.owned={};["ball","fx","title","bg"].forEach(k=>{if(!Array.isArray(c.owned[k]))c.owned[k]=[];});
-  if(!c.best||typeof c.best!=="object")c.best={};["dig","quick","quiz","serve"].forEach(k=>{c.best[k]=+c.best[k]||0;});
+  if(!c.best||typeof c.best!=="object")c.best={};["dig","quick","quiz","serve","block","setter","lightning","expert"].forEach(k=>{c.best[k]=+c.best[k]||0;});
+  if(!c.stats||typeof c.stats!=="object")c.stats={};if(!c.chal||typeof c.chal!=="object")c.chal={};if(!c.daily||typeof c.daily!=="object")c.daily={};
   if(!c.camp||typeof c.camp!=="object")c.camp={};["badges","bought","road"].forEach(k=>{if(!Array.isArray(c[k]))c[k]=[];});
-  ["feathers","earned","digs","thunder","games","aces"].forEach(k=>{c[k]=+c[k]||0;});if(!c.goal||typeof c.goal!=="object")c.goal={};return c;}
+  ["feathers","earned","digs","thunder","games","aces","dailyN"].forEach(k=>{c[k]=+c[k]||0;});if(!c.goal||typeof c.goal!=="object")c.goal={};return c;}
 const save=()=>{VB.save&&VB.save();};
 
 /* ---------- rewards ---------- */
 const TITLES={crow:"Crow of Karasuno",fearless:"Fearless",spark:"The Spark",captain:"Captain",guardian:"Guardian Deity",thunder:"Rolling Thunder",quick:"Freak Quick",brain:"Volleyball Brain",ace:"Karasuno Ace",server:"Service Ace",
-  giant:"Little Giant",allround:"All-Rounder",champ:"National Champion",goat:"The GOAT"};
-const BGS={crowgym:"Crow gym",orange:"Orange court",sky:"Night sky court"};
-const QN=8;
+  giant:"Little Giant",allround:"All-Rounder",champ:"National Champion",goat:"The GOAT",
+  wall:"Monster Block",setter:"Setter Genius",lightning:"Lightning Brain",libero:"Libero Focus",tool:"Block Tooler",seam:"Seam Hunter",daily:"Daily Grinder",
+  legend:"World Club Legend",storm:"Eye of the Storm",iron:"Iron Platform",maestro:"The Maestro",rocket:"Rocket Arm",commander:"Floor General"};
+const BGS={crowgym:"Crow gym",orange:"Orange court",sky:"Night sky court",storm:"Storm court",nationals:"Nationals arena"};
+const QN=10;
+const arcadeNational=c=>{const A=VB.crowArcade;return A?A.order.filter(id=>c.bestM&&c.bestM[id]&&c.bestM[id].national>0).length:0;};
+const st=(c,k)=>+(c.stats&&c.stats[k])||0;
 const campDays=c=>Object.values(c.camp).filter(a=>Array.isArray(a)&&a.length>=3).length;
 /* skill chart, each 0 to 100 */
-const SKILLS=[["Receive",c=>c.best.dig/60],["Attack",c=>c.best.quick/15],["Serve",c=>c.best.serve/30],["Volleyball IQ",c=>c.best.quiz/QN],["Grit",c=>campDays(c)/10],["Energy",c=>(c.thunder+c.games)/40]];
+const SKILLS=[["Receive",c=>c.best.dig/400],["Attack",c=>c.best.quick/24],["Serve",c=>c.best.serve/120],["Block",c=>c.best.block/160],["Setting",c=>c.best.setter/260],
+  ["Volleyball IQ",c=>Math.max(c.best.quiz/QN,c.best.lightning/20,c.best.expert/15)],["Grit",c=>(campDays(c)+Object.keys(c.chal||{}).length)/24],["Energy",c=>(c.thunder+c.games)/120]];
 const skills=c=>SKILLS.map(([,f])=>Math.round(Math.max(0,Math.min(1,f(c)))*100));
+/* ---------- the player card: six attributes from the Haikyuu stat chart, graded E to S ----------
+   XP comes from everything you have done (lifetime), so grades only go up, slowly. Each grade is capped until you earn
+   enough stars (1 to 3 per game and mode) and season wins: a stat can't pass the cap however much XP it has. */
+const ATTRS=[
+  ["power","Power","Kills, aces, tooled blocks and big serves",c=>st(c,"kills")*3+c.aces*4+st(c,"tools")*3+c.best.serve*2+st(c,"quickScore")+st(c,"powerSpikes")*6],
+  ["jump","Jump","Stuff blocks, touches and your best block and attack games",c=>st(c,"stuffs")*5+st(c,"touches")*2+c.best.block*2+c.best.quick*5],
+  ["speed","Speed","Digs, perfect digs and the Lightning quiz",c=>c.digs+st(c,"perfectDigs")*2+c.best.dig+c.best.lightning*8],
+  ["tech","Technique","Perfect digs, tools, tip kills, seam aces and good leaves",c=>st(c,"perfectDigs")*2+st(c,"tools")*4+st(c,"tipKills")*4+st(c,"seams")*4+st(c,"leaves")*3],
+  ["sense","Game sense","Setter reads, dumps, the quiz and Setter's Vision",c=>st(c,"reads")*5+st(c,"dumps")*4+c.best.setter*2+c.best.quiz*15+c.best.expert*10],
+  ["stam","Stamina","Games played, camp days, challenge drills, daily challenges and Zones",c=>c.games*6+campDays(c)*40+Object.keys(c.chal||{}).length*30+c.dailyN*25+st(c,"zones")*5]];
+const GRADES=["E","D","C","B","A","S"],GXP=[0,120,400,1000,2200,4500],RANKS=["Benchwarmer","Rookie","Starter","Regular","Ace","Monster"];
+const starTotal=c=>VB.crowArcade?VB.crowArcade.starTotal(c):0,starMax=()=>VB.crowArcade?VB.crowArcade.starMax():40;
+/* what it takes to lift each grade cap: [grade index, stars, season wins] */
+const CAPS=[[2,4,0],[3,12,3],[4,24,7],[5,36,11]];
+const gradeCap=c=>{const s=starTotal(c),w=c.road.length;let g=1;for(const [gi,ns,nw] of CAPS){if(s>=ns&&w>=nw)g=gi;else break;}return g;};
+function attrs(c){const cap=gradeCap(c);return ATTRS.map(([k,l,how,f])=>{const xp=Math.max(0,Math.round(f(c)));let raw=0;while(raw<5&&xp>=GXP[raw+1])raw++;const g=Math.min(raw,cap),capped=raw>cap;
+  const lo=GXP[g],hi=GXP[g+1],prog=g>=5?1:capped?1:(xp-lo)/(hi-lo);return {k,l,how,xp,g,raw,capped,prog:Math.max(0,Math.min(1,prog)),next:g>=5?null:hi};});}
+const level=c=>{const t=attrs(c).reduce((a,b)=>a+b.xp,0);const lv=Math.floor(Math.sqrt(t/30))+1,lo=Math.pow(lv-1,2)*30,hi=Math.pow(lv,2)*30;return {lv,t,prog:(t-lo)/(hi-lo),need:hi-t};};
+const overall=c=>{const a=attrs(c);return Math.round(a.reduce((x,y)=>x+y.g+y.prog*.999,0)/a.length*10)/10;};
+function perks(){if(!on())return {win:1,dur:1,fill:1,power:1};const a=Object.fromEntries(attrs(C()).map(x=>[x.k,x.g]));
+  return {win:1+.03*a.tech,dur:1+.08*a.stam,fill:1+.05*a.sense,power:1+.1*a.power};}
+const GCOL=["#7a7383","#4fb3a9","#6aa7ff","#b48cff","var(--cra)","#ffd34d"];
+function hexCard(c){const a=attrs(c),n=6,R=118,cx=160,cy=150,pt=(i,r)=>[cx+Math.sin(i/n*Math.PI*2)*r,cy-Math.cos(i/n*Math.PI*2)*r],ring=k=>a.map((_,i)=>pt(i,R*k).join(",")).join(" ");
+  const val=x=>(x.g+(x.g>=5?0:x.prog))/5.4+.07;
+  return `<svg class="kc-hex" viewBox="0 0 320 300" role="img" aria-label="Player card: ${a.map(x=>x.l+" "+GRADES[x.g]).join(", ")}">
+    <defs><radialGradient id="kchg" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="rgba(var(--cra-rgb),.55)"/><stop offset="1" stop-color="rgba(var(--cra-rgb),.18)"/></radialGradient></defs>
+    ${[1,2,3,4,5].map(k=>`<polygon points="${ring(k/5.4+.07)}" fill="${k%2?"rgba(255,255,255,.025)":"none"}" stroke="rgba(255,255,255,${k===5?.28:.1})" stroke-width="${k===5?1.5:1}"/>`).join("")}
+    ${a.map((_,i)=>{const [x,y]=pt(i,R*(5/5.4+.07));return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="rgba(255,255,255,.1)"/>`;}).join("")}
+    ${GRADES.slice(1).map((gl,k)=>{const [x,y]=pt(0,R*((k+1)/5.4+.07));return `<text class="kc-rl" x="${x+5}" y="${y+3}">${gl}</text>`;}).join("")}
+    <polygon class="kc-poly" points="${a.map((x,i)=>pt(i,R*val(x)).join(",")).join(" ")}" fill="url(#kchg)" stroke="var(--cra)" stroke-width="2.5" stroke-linejoin="round"/>
+    ${a.map((x,i)=>{const [px,py]=pt(i,R*val(x));return `<circle cx="${px}" cy="${py}" r="3.5" fill="#fff"/>`;}).join("")}
+    ${a.map((x,i)=>{const [lx,ly]=pt(i,R+26);return `<g transform="translate(${lx},${ly})"><text class="kc-al" y="-9" text-anchor="middle">${esc(x.l.toUpperCase())}</text><rect x="-12" y="-3" width="24" height="20" rx="4" fill="${GCOL[x.g]}"/><text class="kc-ag" y="12" text-anchor="middle">${GRADES[x.g]}</text></g>`;}).join("")}</svg>`;}
+function playerCard(P){const c=C(),p=ME(),pr=VB.state.profile||{},a=attrs(c),L=level(c),ov=overall(c),oi=Math.min(5,Math.floor(ov)),cap=gradeCap(c),sT=starTotal(c),pk=perks(),A=VB.crowArcade;
+  const nextCap=CAPS.find(([gi])=>gi>cap);
+  P.innerHTML=`<div class="kcard">
+    <div class="kc-top"><div class="kc-id">${crestSvg("kc-crest")}<div><div class="kicker">Karasuno · Player card</div><h3>${esc(p.name)}</h3><span class="kc-pos">${esc((VB.POS[pr.pos]||VB.POS.any).label)}${pr.number!=null?" · No. "+esc(pr.number):""}</span></div></div>
+      <div class="kc-rank"><div class="kc-big g${oi}">${GRADES[oi]}</div><div><b>${RANKS[oi]}</b><span>Overall ${ov.toFixed(1)} / 5</span></div></div></div>
+    <div class="kc-lv"><div><b>LV ${L.lv}</b><span>${L.t.toLocaleString()} XP · ${L.need.toLocaleString()} to LV ${L.lv+1}</span></div><span class="kc-bar"><i style="width:${Math.round(L.prog*100)}%"></i></span>
+      <div class="kc-st"><b>${sT}<small>/${starMax()}</small></b><span>★ stars</span></div><div class="kc-st"><b>${c.road.length}<small>/${ROAD.length}</small></b><span>Match wins</span></div></div>
+    <div class="kc-main">${hexCard(c)}
+      <div class="kc-rows">${a.map(x=>`<div class="kc-row ${x.capped?"capped":""}"><span class="kc-g" style="background:${GCOL[x.g]}">${GRADES[x.g]}</span><div><div class="kc-rh"><b>${esc(x.l)}</b><small>${x.g>=5?"Maxed":x.capped?"Capped at "+GRADES[cap]+" · "+x.xp.toLocaleString()+" XP waiting":x.xp.toLocaleString()+" / "+x.next.toLocaleString()+" XP to "+GRADES[x.g+1]}</small></div>
+        <span class="kc-bar"><i style="width:${Math.round(x.prog*100)}%;background:${GCOL[Math.min(5,x.g+1)]}"></i></span><small class="muted">${esc(x.how)}</small></div></div>`).join("")}</div></div>
+    <div class="kc-foot"><div class="card"><div class="kicker">Grade caps</div><p class="small muted">Like a real player, XP alone won't make you an ace. Every grade above D is locked until you earn stars in the arcade (1 to 3 per game and difficulty, Rookie tops out at 2) and win season matches.</p>
+        <ol class="kc-caps">${CAPS.map(([gi,ns,nw])=>{const ok=sT>=ns&&c.road.length>=nw;return `<li class="${ok?"ok":gi===(nextCap&&nextCap[0])?"next":""}"><span class="kc-g" style="background:${GCOL[gi]}">${GRADES[gi]}</span><div><b>${ok?"Unlocked":"Locked"}</b><small>${ns} ★${nw?` and ${nw} match wins`:""}</small></div></li>`;}).join("")}</ol></div>
+      <div class="card"><div class="kicker">Perks from your grades</div><ul class="kc-perks"><li><b>+${Math.round((pk.win-1)*100)}%</b> timing windows <small>Technique</small></li><li><b>+${Math.round((pk.dur-1)*100)}%</b> Zone length <small>Stamina</small></li><li><b>+${Math.round((pk.fill-1)*100)}%</b> Zone fill speed <small>Game sense</small></li><li><b>+${Math.round((pk.power-1)*100)}%</b> Power Spike charge <small>Power</small></li></ul>
+        ${A?`<div class="kicker" style="margin-top:12px">Stars by game</div><table class="arec kc-stars"><thead><tr><th>Game</th>${Object.keys(A.MODES).map(m=>`<th>${A.MODES[m].label}</th>`).join("")}</tr></thead><tbody>${Object.keys(A.STARS).map(id=>{const G2=A.games[id];if(!G2)return "";const s2=(c.stars||{})[id]||{};return `<tr><td>${esc(G2.title)}</td>${Object.keys(A.MODES).map(m=>`<td class="st">${[0,1,2].map(i=>`<i class="${i<(s2[m]||0)?"on":""}${m==="rookie"&&i===2?" cap":""}">★</i>`).join("")}</td>`).join("")}</tr>`;}).join("")}</tbody></table>`:""}</div></div></div>`;}
 const BADGES=[
   {id:"welcome",name:"Welcome to Karasuno",desc:"Enter your secret code",have:()=>1,n:1,f:50,r:p=>[["ball",p.start.ball],["fx",p.start.fx],["title",p.start.title],["bg",p.start.bg]]},
   {id:"digs",name:"Nice receive!",desc:"Dig 25 balls in Dig Defence",have:c=>c.digs,n:25,f:20,r:()=>[]},
@@ -100,7 +154,27 @@ const BADGES=[
   {id:"camp7",name:"Karasuno Ace",desc:"Finish the daily camp on 7 days",have:c=>campDays(c),n:7,f:100,r:()=>[["title","ace"]]},
   {id:"goal",name:"Promise kept",desc:"Finish a weekly goal",have:c=>c.goalsDone||0,n:1,f:30,r:()=>[]},
   {id:"allround",name:"All-Rounder",desc:"Reach 50 in every skill on your skill chart",have:c=>Math.min(...skills(c)),n:50,f:80,r:()=>[["title","allround"]]},
-  {id:"champ",name:"National Champion",desc:"Win every match on the season road",have:c=>c.road.length,n:10,f:150,r:()=>[["title","champ"]]}
+  {id:"champ",name:"National Champion",desc:"Win the Nationals final on the season road",have:c=>c.road.length,n:10,f:150,r:()=>[["title","champ"]]},
+  /* v8.8: the arcade, the quiz modes, the camp challenge and the second season */
+  {id:"wave10",name:"Ten waves deep",desc:"Reach wave 10 in Dig Defence",have:c=>st(c,"bestWave"),n:10,f:80,r:()=>[["title","libero"]]},
+  {id:"leaves",name:"Good eye",desc:"Leave 25 deflections that fly out in Dig Defence",have:c=>st(c,"leaves"),n:25,f:40,r:()=>[]},
+  {id:"perfect100",name:"Iron platform",desc:"Make 100 perfect digs",have:c=>st(c,"perfectDigs"),n:100,f:70,r:()=>[["title","iron"]]},
+  {id:"tool",name:"Tool time",desc:"Tool the block 15 times in Freak Quick",have:c=>st(c,"tools"),n:15,f:50,r:()=>[["title","tool"]]},
+  {id:"quick20",name:"Too fast to block",desc:"Hit a streak of 20 in Freak Quick",have:c=>c.best.quick,n:20,f:90,r:()=>[["title","rocket"]]},
+  {id:"seam",name:"Seam hunter",desc:"Hit 10 seam aces in Jump Serve",have:c=>st(c,"seams"),n:10,f:50,r:()=>[["title","seam"]]},
+  {id:"serve40",name:"Service pressure",desc:"Score 40 in one game of Jump Serve",have:c=>c.best.serve,n:40,f:60,r:()=>[]},
+  {id:"stuff10",name:"First stuffs",desc:"Get 10 stuff blocks in Block Party",have:c=>st(c,"stuffs"),n:10,f:40,r:()=>[]},
+  {id:"wall",name:"Monster block",desc:"Score 40 in one game of Block Party",have:c=>c.best.block,n:40,f:80,r:()=>[["title","wall"]]},
+  {id:"reads",name:"Setter's eyes",desc:"Make 30 perfect reads in Setter's Vision",have:c=>st(c,"reads"),n:30,f:50,r:()=>[["title","commander"]]},
+  {id:"setter",name:"Setter Genius",desc:"Score 80 in one game of Setter's Vision",have:c=>c.best.setter,n:80,f:80,r:()=>[["title","setter"]]},
+  {id:"dumps",name:"Sneaky setter",desc:"Land 5 setter dumps",have:c=>st(c,"dumps"),n:5,f:40,r:()=>[["title","maestro"]]},
+  {id:"lightning",name:"Lightning Brain",desc:"Get 15 right in a Lightning round",have:c=>c.best.lightning,n:15,f:70,r:()=>[["title","lightning"]]},
+  {id:"expert",name:"Rules expert",desc:"Get 12 right in Expert mode",have:c=>c.best.expert,n:12,f:80,r:()=>[]},
+  {id:"national",name:"National level",desc:"Score on National difficulty in all five arcade games",have:arcadeNational,n:5,f:120,r:()=>[["bg","storm"]]},
+  {id:"daily5",name:"Daily grinder",desc:"Complete 5 daily challenges",have:c=>c.dailyN,n:5,f:60,r:()=>[["title","daily"]]},
+  {id:"chal5",name:"Above and beyond",desc:"Finish 5 camp challenge drills",have:c=>Object.keys(c.chal||{}).length,n:5,f:60,r:()=>[]},
+  {id:"camp14",name:"Two weeks strong",desc:"Finish the daily camp on 14 days",have:c=>campDays(c),n:14,f:120,r:()=>[["title","storm"]]},
+  {id:"world",name:"World Club Champion",desc:"Win the World Club Championship on the season road",have:c=>c.road.length,n:20,f:250,r:()=>[["title","legend"],["bg","nationals"]]}
 ];
 const SHOP=[
   {id:"giant",name:"Little Giant",kind:"Title",cost:150,r:["title","giant"]},
@@ -113,7 +187,13 @@ const SHOP=[
   {id:"crowtitle",name:"Crow of Karasuno",kind:"Title",cost:300,r:["title","crow"]},
   {id:"spark",name:"The Spark",kind:"Title",cost:300,r:["title","spark"]},
   {id:"captain",name:"Captain",kind:"Title",cost:300,r:["title","captain"]},
-  {id:"goat",name:"The GOAT",kind:"Title",cost:400,r:["title","goat"]}
+  {id:"goat",name:"The GOAT",kind:"Title",cost:400,r:["title","goat"]},
+  {id:"stormbg",name:"Storm court",kind:"Background",cost:450,r:["bg","storm"]},
+  {id:"natbg",name:"Nationals arena",kind:"Background",cost:600,r:["bg","nationals"]},
+  {id:"tooltitle",name:"Block Tooler",kind:"Title",cost:350,r:["title","tool"]},
+  {id:"rockettitle",name:"Rocket Arm",kind:"Title",cost:450,r:["title","rocket"]},
+  {id:"maestrotitle",name:"The Maestro",kind:"Title",cost:450,r:["title","maestro"]},
+  {id:"legendtitle",name:"World Club Legend",kind:"Title",cost:1500,r:["title","legend"]}
 ];
 /* the season road: invented rival teams, one match at a time */
 const ROAD=[
@@ -126,7 +206,18 @@ const ROAD=[
   {opp:"Summit Falcons",kind:"Cup quarter-final",need:"Earn 6 badges",ok:c=>c.badges.length>=6,f:40},
   {opp:"Cedar Point Lynx",kind:"Cup semi-final",need:"Score 40 in Dig Defence and 20 in Jump Serve",ok:c=>c.best.dig>=40&&c.best.serve>=20,f:50},
   {opp:"Thunder Bay Eagles",kind:"Cup final",need:"Hit a streak of 12 in Freak Quick",ok:c=>c.best.quick>=12,f:60},
-  {opp:"The Kings of the Court",kind:"Nationals final",need:"Reach 60 in every skill on your skill chart",ok:c=>Math.min(...skills(c))>=60,f:100}
+  {opp:"The Kings of the Court",kind:"Nationals final",need:"Reach 60 in every skill on your skill chart",ok:c=>Math.min(...skills(c))>=60,f:100},
+  /* the second season: the World Club Championship */
+  {opp:"Sendai Storm",kind:"World Club · pool",need:"Score 15 in Block Party",ok:c=>c.best.block>=15,f:60},
+  {opp:"Lisbon Navigators",kind:"World Club · pool",need:"Score 30 in Setter's Vision",ok:c=>c.best.setter>=30,f:60},
+  {opp:"Rio Sambas",kind:"World Club · pool",need:"Reach wave 6 in Dig Defence",ok:c=>st(c,"bestWave")>=6,f:60},
+  {opp:"Ankara Wolves",kind:"World Club · pool",need:"Score 30 in Jump Serve",ok:c=>c.best.serve>=30,f:60},
+  {opp:"Milano Lions",kind:"Round of 16",need:"Get 15 right in a Lightning round of Volleyball IQ",ok:c=>c.best.lightning>=15,f:70},
+  {opp:"Krakow Hussars",kind:"Quarter-final",need:"Hit a streak of 15 in Freak Quick",ok:c=>c.best.quick>=15,f:80},
+  {opp:"Shanghai Dragons",kind:"Semi-final",need:"Complete 5 daily challenges",ok:c=>c.dailyN>=5,f:90},
+  {opp:"Belo Horizonte Hawks",kind:"World Club final",need:"Score 30 in Block Party and 60 in Setter's Vision",ok:c=>c.best.block>=30&&c.best.setter>=60,f:120},
+  {opp:"The All-Stars",kind:"Exhibition",need:"Score on National difficulty in all five arcade games",ok:c=>arcadeNational(c)>=5,f:120},
+  {opp:"Karasuno Legends",kind:"Legends match",need:"Reach 70 in every skill on your skill chart",ok:c=>Math.min(...skills(c))>=70,f:200}
 ];
 function give(c,[t,id]){if(t&&id&&!c.owned[t].includes(id))c.owned[t].push(id);}
 function checkRoad(c,fresh){let i=c.road.length;while(i<ROAD.length&&ROAD[i].ok(c)){c.road.push(i);c.feathers+=ROAD[i].f;c.earned+=ROAD[i].f;fresh.push({name:`Win vs ${ROAD[i].opp}`,f:ROAD[i].f,rr:[]});i++;}}
@@ -145,7 +236,7 @@ const accent=()=>on()?ME().col.a:null;
 
 /* ---------- sound ---------- */
 let AC=null,noiseBuf=null;
-function sfx(kind){if(!on()||G().mute)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume();}catch(e){return;}
+function sfx(kind,arg){if(!on()||G().mute)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume();}catch(e){return;}
   const t=AC.currentTime,out=AC.createGain();out.gain.value=.22;out.connect(AC.destination);
   const tone=(f,d,type,at,vol,f2)=>{const o=AC.createOscillator(),g=AC.createGain();o.type=type||"sine";o.frequency.setValueAtTime(f,t+(at||0));if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+(at||0)+d);
     g.gain.setValueAtTime(0,t+(at||0));g.gain.linearRampToValueAtTime(vol||1,t+(at||0)+.008);g.gain.exponentialRampToValueAtTime(.001,t+(at||0)+d);o.connect(g);g.connect(out);o.start(t+(at||0));o.stop(t+(at||0)+d+.05);};
@@ -160,12 +251,32 @@ function sfx(kind){if(!on()||G().mute)return;try{AC=AC||new (window.AudioContext
   else if(kind==="unlock"){[523,659,784,1047].forEach((f,i)=>tone(f,.3,"triangle",i*.09,.55));}
   else if(kind==="coin"){tone(988,.08,"square",0,.25);tone(1319,.18,"square",.07,.25);}
   else if(kind==="whoosh"){noise(.35,0,.6,1200);}
-  else if(kind==="tick"){tone(660,.05,"triangle",0,.3);}}
+  else if(kind==="tick"){tone(660,.05,"triangle",0,.3);}
+  else if(kind==="set"){tone(520,.06,"sine",0,.35,600);noise(.04,0,.25,3000);}
+  else if(kind==="block"){noise(.18,0,1,2200);tone(110,.25,"sine",0,1,50);tone(70,.3,"square",.02,.3,40);}
+  else if(kind==="chime"){/* a pentatonic step up for every point in a streak, so a long streak climbs */const n=Math.max(0,(arg|0)-1),st=[0,2,4,7,9],semi=st[n%5]+12*Math.min(2,Math.floor(n/5)),f=523.25*Math.pow(2,semi/12)*(1+(Math.random()-.5)*.01);
+    tone(f,.14,"triangle",0,.32);tone(f*2,.08,"sine",.01,.12);}
+  else if(kind==="zone"){noise(.6,0,.6,1400);[392,523,659,784,1047].forEach((f,i)=>tone(f,.22,"square",i*.05,.18));tone(65,.9,"sawtooth",0,.5,130);}
+  else if(kind==="power"){noise(.3,0,1,5000);tone(60,.4,"sawtooth",0,.8,30);tone(1200,.2,"square",0,.2,300);}
+  else if(kind==="whistle"){tone(2350,.16,"sine",0,.4,2300);tone(2350,.3,"sine",.2,.45,2250);}}
 
 /* ---------- crow silhouette (an original simple bird shape) ---------- */
-const CROW_PATH="M2 26 C10 21 19 19 27 21 C31 13 40 5 54 2 C47 9 43 15 42 21 C48 20 55 22 62 25 C56 26 51 27 47 29 L55 34 C48 34 42 33 37 31 C31 36 22 38 13 36 C16 33 18 31 19 29 C13 29 7 28 2 26 Z";
-const crowSvg=(cls)=>`<svg class="${cls||"crowic"}" viewBox="0 0 64 40" aria-hidden="true"><path d="${CROW_PATH}" fill="currentColor"/></svg>`;
-function crowAt(g,x,y,s,flip,col){g.save();g.translate(x,y);g.scale(flip?-s:s,s);g.translate(-32,-20);g.fillStyle=col;g.fill(new Path2D(CROW_PATH));g.restore();}
+/* the crow mark, traced from the chosen logo: a diving crow, talons out (100 units tall, faces left) */
+const CROW_PATH="m 53.8,0.4 c -0.2,0.3 -0.7,0.7 -1,1 c -0.3,0.3 -0.8,0.9 -1.2,1.2 c -0.3,0.4 -1.4,1.4 -2.3,2.4 c -0.9,1 -1.8,1.9 -2,2.1 c -1.2,1.3 -3.7,3.9 -4.4,4.7 c -0.5,0.5 -1.1,1.2 -1.4,1.5 c -0.9,1 -1.2,1.2 -1.2,0.9 c 0,-0.1 0,-0.1 0.1,-0.1 c 0,0 0.2,-0.2 0.3,-0.5 c 0.1,-0.3 0.2,-0.6 0.3,-0.8 c 0.2,-0.5 0.4,-1.4 0.7,-3 c 0.1,-0.4 -0.1,-0.3 -0.8,0.4 c -0.3,0.3 -0.8,0.8 -1,1.1 c -0.5,0.5 -0.6,0.6 -1.8,2 c -0.4,0.4 -0.8,0.9 -0.9,1 c -0.1,0.1 -0.4,0.5 -0.7,0.9 c -0.3,0.3 -0.5,0.6 -0.5,0.6 c -0,0 -0.1,0.1 -0.1,0.1 c 0,0.1 -0.1,0.3 -0.3,0.5 c -0.2,0.2 -0.3,0.4 -0.3,0.5 c 0,0 -0.2,0.3 -0.4,0.7 c -0.2,0.3 -0.4,0.6 -0.4,0.6 c 0,0 -0.3,0.4 -0.6,0.9 c -0.3,0.5 -0.6,0.8 -0.6,0.9 c 0,0 -0.1,0.2 -0.3,0.4 c -0.1,0.2 -0.3,0.4 -0.3,0.4 c 0,0 -0.2,0.4 -0.5,0.8 c -0.3,0.4 -0.6,0.9 -0.7,1.1 c -0.1,0.2 -1.5,2.5 -2.2,3.6 c -0.1,0.1 -0.4,0.6 -0.7,1.1 c -0.7,1.1 -0.9,1.2 -0.8,0.1 c 0,-0.4 0.2,-1.1 0.3,-1.4 c 0.2,-0.5 0.2,-0.7 0,-0.7 c -0.2,0 -1.5,1.3 -2.3,2.1 c -0.3,0.3 -0.6,0.7 -0.7,0.8 c -0.3,0.4 -1.1,1.5 -1.1,1.6 c 0,0.1 -0,0.1 -0.1,0.1 c -0.1,0 -0.3,0.3 -0.9,1.6 c -0.6,1.2 -0.9,1.8 -1.1,2.4 c -0.1,0.3 -0.2,0.7 -0.3,0.8 c -0.1,0.2 -0.1,0.4 -0.1,0.5 c 0,0.1 -0,0.3 -0.1,0.3 c -0.1,0 -0.1,0.3 -0.2,0.6 c -0,0.3 -0.1,0.6 -0.2,0.7 c -0.1,0.3 -0.3,2.1 -0.3,2.3 c 0.7,1.8 0.6,12.9 -0.1,14 c -0.2,0.3 -0.3,0.3 -1.7,0.6 c -0.2,0.1 -0.6,0.2 -0.9,0.2 c -1.4,0.4 -3.8,1.1 -4.3,1.2 c -0.2,0 -0.7,0.2 -1.1,0.3 c -0.4,0.1 -0.9,0.3 -1.1,0.3 c -1.2,0.3 -3.2,1.9 -5.9,4.8 c -2.3,2.4 -2.3,2.4 -2.3,3.8 c -0.1,1.1 -0.1,1.2 -0.3,1.6 c -0.2,0.3 -0.3,0.6 -0.4,0.6 c -0.1,0.1 -0.2,0.3 -0.4,0.5 c -0.2,0.2 -0.3,0.4 -0.3,0.5 c 0,0.1 -0,0.2 -0.1,0.2 c -0.1,0 -1.3,2.5 -1.3,2.7 c 0,0.1 -0,0.2 -0.1,0.2 c -0.1,0 -0.1,0.2 -0.1,0.3 c -0,0.1 -0.2,0.7 -0.3,1.2 c -0.5,1.8 -0.4,3 0.5,5.9 c 0.3,0.8 0.4,0.9 0.8,0.3 c 0.2,-0.3 0.4,-0.5 0.4,-0.6 c 0.1,-0.1 0.5,-0.7 1.1,-1.5 c 0.6,-0.7 1.1,-1.4 1.1,-1.5 c 0.1,-0.1 0.4,-0.4 0.7,-0.9 c 0.3,-0.4 0.6,-0.8 0.7,-0.9 c 0.1,-0.1 0.2,-0.2 0.2,-0.2 c 0,-0.8 1.9,-1.9 4.2,-2.5 c 0.4,-0.1 2.1,-0.7 2.6,-0.9 c 0.2,-0.1 0.5,-0.2 0.8,-0.3 c 0.3,-0.1 0.5,-0.2 0.5,-0.2 c 0,-0.1 0.2,-0.1 0.3,-0.1 c 0.2,0 0.5,-0.1 0.8,-0.3 c 0.3,-0.1 0.6,-0.3 0.7,-0.3 c 0.1,0 0.5,-0.1 0.9,-0.3 c 1,-0.3 1.6,-0.3 2.4,0.2 c 0.1,0.1 0.2,0.1 0.3,0.1 c 0.2,0 1.2,0.4 1.9,0.7 c 0.2,0.1 0.4,0.2 0.5,0.2 c 0.1,0 2.3,1 3.4,1.6 c 0.7,0.4 1,0.5 2.4,1.3 c 2.4,1.3 3.1,1.8 3.1,2.3 c 0,0.1 0.1,0.3 0.1,0.5 c 0.6,1.2 0.7,1.6 0.1,1.8 c -1.4,0.4 -2.7,0.6 -5.4,0.6 c -2.9,0.1 -3.7,0.5 -5.2,2.7 c -0.1,0.2 -0.3,0.4 -0.3,0.4 c -0,0 -0.1,0.1 -0.1,0.2 c -0,0.1 -0.2,0.4 -0.4,0.6 c -0.4,0.5 -1.2,1.8 -1.2,1.8 c 0,0 -0.1,0.2 -0.3,0.5 c -0.2,0.3 -0.3,0.5 -0.3,0.6 c 0,0.1 -0.1,0.2 -0.1,0.3 c -0.4,0.5 -0.5,1.4 -0.2,2.1 c 0.4,0.7 0.4,0.8 0.5,0.2 c 0,-0.2 0.1,-0.4 0.2,-0.5 c 0.1,-0 0.1,-0.1 0.1,-0.3 c 0,-0.4 0.2,-0.4 0.6,0 c 0.4,0.4 0.8,0.6 0.6,0.2 c -0.2,-0.5 -0,-1.9 0.3,-1.9 c 0,0 0.2,-0.2 0.3,-0.5 c 0.2,-0.2 0.4,-0.6 0.6,-0.9 c 0.2,-0.2 0.5,-0.6 0.6,-0.8 c 0.1,-0.2 0.3,-0.5 0.4,-0.6 c 0.1,-0.1 0.3,-0.3 0.4,-0.5 c 0.2,-0.2 0.2,-0.2 1.1,0.6 c 1,0.9 1.4,1.1 1.9,0.9 c 0.6,-0.4 0.5,0.4 -0.1,1.5 c -0.4,0.7 0.2,0.4 0.6,-0.3 c 0.6,-0.9 0.8,-1.8 0.6,-2.3 c -0.1,-0.1 -0.2,-0.4 -0.3,-0.6 c -0.1,-0.3 -0.4,-0.8 -0.7,-1.2 c -0.3,-0.4 -0.5,-0.8 -0.5,-0.8 c 0,-0.3 1.3,-0.6 3.6,-0.8 c 0.6,-0.1 1.6,-0.1 2.1,-0.2 c 1,-0.1 1.4,-0.1 1.4,0.1 c 0.1,0.9 0.1,3.4 -0,3.9 c -0.1,0.2 -0.1,0.6 -0.2,0.8 c -0.1,0.2 -0.1,0.5 -0.2,0.6 c -0.2,0.5 0,0.6 0.5,0.2 c 0.2,-0.2 0.4,-0.3 0.5,-0.3 c 0.1,0 0.1,0.3 0,0.3 c -0.1,0 -0.3,0.4 -0.5,0.8 c -0.4,0.8 -0.5,0.9 -1.1,0.9 c -0.2,0 -0.5,0 -0.6,0.1 c -0.4,0.1 -1.7,0.4 -2.7,0.5 c -1,0.2 -1.5,0.2 -2.9,0.5 c -1.1,0.2 -1.6,0.3 -2.8,0.5 c -1.5,0.2 -2.9,0.5 -2.9,0.6 c -0,0 -0.1,0.1 -0.3,0.1 c -0.1,0 -0.4,0.1 -0.7,0.2 c -1.1,0.5 -1.7,0.8 -1.8,0.8 c -0.1,0 -2.2,1 -3,1.5 c -1.8,1 -3.3,2.3 -3.8,3.3 c -0.6,1.2 -0.7,3.1 -0.2,2.3 c 0.1,-0.2 0.2,-0.4 0.2,-0.5 c 0,-0.1 0.1,-0.3 0.2,-0.3 c 0.1,-0.1 0.2,-0.2 0.2,-0.2 c 0,-0.3 0.8,-0.9 1.1,-0.8 c 0.3,0.1 1.6,-0.4 2,-0.8 c 0.2,-0.2 0.5,-0.1 0.5,0 c 0,0.1 -0.1,0.2 -0.2,0.3 c -0.1,0.1 -0.2,0.3 -0.3,0.4 c -0,0.1 -0.1,0.3 -0.2,0.4 c -0.3,0.4 -0.7,1.7 -0.6,2.5 c 0,0.8 0.2,0.9 0.4,0.1 c 0.1,-0.3 0.2,-0.5 0.3,-0.5 c 0.1,-0 0.1,-0.1 0.1,-0.1 c 0,-0.1 0.6,-1 0.7,-1.1 c 0.1,-0 0.1,-0.2 0,-0.3 c -0.1,-0.3 -0.1,-0.3 0.6,-0.2 c 0.8,0.1 1.2,-0.1 1.5,-0.5 c 0.2,-0.3 1.5,-1.6 2,-2.1 c 0.1,-0.1 0.8,-0.8 1.4,-1.4 c 1.4,-1.4 1.2,-1.4 2.2,-0.6 c 1.2,0.9 2.3,1.6 3.2,2.1 c 0.4,0.2 1.8,0.3 2.1,0.1 c 0.7,-0.4 1.3,1.3 0.6,1.8 c -0.1,0.1 -0.2,0.2 -0.2,0.2 c 0,0.1 -0.1,0.2 -0.2,0.4 c -0.7,0.8 -0.7,0.7 -0.3,0.7 c 0.6,-0.1 1.7,-1 1.7,-1.3 c 0,-0.1 0.1,-0.2 0.1,-0.3 c 0.2,-0.2 0.2,-1.8 -0.1,-2.2 c -0.2,-0.3 -0.8,-0.9 -1.4,-1.2 c -0.1,-0.1 -0.4,-0.2 -0.6,-0.4 c -0.2,-0.1 -1.1,-0.6 -2,-1.1 c -1.9,-1 -1.9,-1 -0.8,-1.1 c 0.4,-0 1,-0.1 1.3,-0.2 c 0.3,-0.1 0.8,-0.2 1.2,-0.2 c 0.4,-0.1 1,-0.2 1.4,-0.3 c 0.4,-0.1 0.9,-0.2 1.2,-0.2 c 0.3,-0 0.9,-0.2 1.3,-0.3 c 0.4,-0.1 1,-0.2 1.1,-0.2 c 0.2,0 0.4,-0 0.5,-0.1 c 0.1,-0.1 0.4,-0.1 0.7,-0.2 c 0.3,-0.1 1,-0.2 1.5,-0.3 c 0.5,-0.1 1.1,-0.3 1.4,-0.3 c 0.3,-0 0.8,-0.2 1.3,-0.3 c 0.4,-0.1 1,-0.3 1.4,-0.3 c 0.3,-0.1 0.7,-0.2 0.8,-0.2 c 0.1,-0.1 0.4,-0.1 0.6,-0.1 c 0.4,-0.1 1.3,-0.3 1.4,-0.3 c 0,-0 0,-1.3 0,-2.8 c -0,-1.5 0,-2.8 0.1,-2.8 c 0.1,0 0.7,0.6 1.4,1.3 c 1.4,1.4 1.5,1.5 1.4,1 c -0,-0.2 -0.1,-0.6 -0.2,-0.9 c -0.1,-0.3 -0.1,-0.7 -0.2,-0.8 c -0.3,-0.6 0.2,-0.3 1.1,0.7 c 1.2,1.2 1.2,1.2 1.2,0.3 c 0,-0.9 0.3,-0.8 0.9,0.6 c 0.1,0.2 0.2,0.4 0.3,0.4 c 0.1,0.1 0.1,0.2 0.1,0.2 c 0,0.1 0.1,0.2 0.2,0.4 c 0.1,0.1 0.3,0.4 0.4,0.7 c 0.1,0.2 0.3,0.6 0.4,0.8 c 0.1,0.2 0.2,0.4 0.3,0.4 c 0,0 0.2,0.3 0.4,0.7 c 0.2,0.3 0.4,0.6 0.4,0.7 c 0,0 0.2,0.3 0.3,0.5 c 0.1,0.3 0.3,0.6 0.4,0.8 c 0.6,1 1.9,3.6 1.9,3.8 c 0,0 0.1,0.2 0.1,0.4 c 0.1,0.2 0.2,0.5 0.3,0.8 c 0.1,0.3 0.2,0.6 0.3,0.7 c 0,0.1 0.2,0.6 0.3,1.1 c 0.1,0.5 0.3,1 0.3,1.1 c 0.2,0.3 3.3,3.3 5.2,4.9 c 0.2,0.2 0.5,0.4 0.6,0.6 c 0.6,0.5 0.9,0.2 0.5,-0.4 c -0.3,-0.4 -0.7,-1.1 -0.9,-1.5 c -0.1,-0.1 -0.1,-0.3 -0.2,-0.3 c -0,-0 -0.1,-0.1 -0.1,-0.2 c -0,-0.1 -0.3,-0.5 -0.5,-1 c -0.2,-0.4 -0.8,-1.5 -1.2,-2.4 c -0.4,-0.9 -0.8,-1.6 -0.9,-1.7 c -0.2,-0.4 -0.7,-1.4 -0.7,-1.6 c -0,-0.1 -0.1,-0.2 -0.2,-0.2 c -0.1,0 -0.1,-0.1 -0.1,-0.1 c 0,-0.1 -0.1,-0.3 -0.3,-0.6 c -0.3,-0.6 -0.3,-0.8 -0.2,-0.8 c 0.1,0 0.1,0 0.1,0.1 c 0,0.2 1.8,2.7 2.8,3.8 c 2.3,2.7 4.3,4.7 6.7,6.6 c 0.8,0.6 2.6,0.8 1.9,0.2 c -0.2,-0.2 -2,-2.8 -2.2,-3.1 c -0,-0.1 -0.1,-0.2 -0.2,-0.3 c -0.3,-0.3 -0.4,-0.4 -0.4,-0.5 c 0,-0 -0.3,-0.5 -0.7,-1.1 c -0.4,-0.6 -0.8,-1.3 -1,-1.6 c -0.2,-0.3 -0.6,-1 -1,-1.5 c -1,-1.5 -0.9,-1.6 0.4,-0.3 c 1.6,1.5 4.9,4.2 6.2,5.1 c 0.3,0.2 0.5,0.4 0.6,0.5 c 0.2,0.2 3.1,2.1 3.2,2.1 c 0,0 0.2,0.1 0.3,0.2 c 0.2,0.2 0.6,0.3 0.6,0.1 c 0,-0 -0.2,-0.3 -0.4,-0.5 c -0.2,-0.2 -0.8,-0.9 -1.3,-1.4 c -0.5,-0.6 -0.9,-1.1 -1,-1.2 c -0.1,-0.1 -0.3,-0.4 -0.6,-0.7 c -0.2,-0.3 -0.6,-0.7 -0.8,-1 c -0.5,-0.6 -0.9,-1.1 -2,-2.4 c -0.5,-0.6 -1.2,-1.4 -1.4,-1.7 c -0.2,-0.3 -0.5,-0.6 -0.6,-0.7 c -0.1,-0.1 -0.3,-0.4 -0.6,-0.7 c -0.8,-1 -0.4,-0.7 1.2,0.6 c 1.3,1.1 2.9,2.3 3.5,2.8 c 0.3,0.2 0.8,0.6 1.2,0.9 c 0.4,0.3 1,0.7 1.2,0.9 c 0.2,0.2 0.6,0.4 0.8,0.6 c 0.2,0.2 0.8,0.6 1.4,1 c 0.5,0.4 1.2,0.8 1.4,0.9 c 0.2,0.2 0.4,0.3 0.5,0.3 c 0,0 0.2,0.1 0.3,0.2 c 0.7,0.5 1.5,0.8 1.5,0.7 c 0,-0 -0.9,-1 -2.1,-2.1 c -3,-2.9 -3,-3 -5.1,-4.9 c -2.8,-2.7 -3.1,-2.9 -3,-3 c 0.1,-0 0.2,0.1 0.4,0.2 c 0.1,0.1 0.3,0.2 0.3,0.2 c 0,0 0.7,0.4 1.5,1 c 0.8,0.5 1.9,1.2 2.5,1.6 c 0.6,0.3 1.1,0.6 1.2,0.7 c 0.2,0.2 3.1,1.5 3.3,1.6 c 0.5,0.2 0.1,-0.3 -1.9,-2 c -0.8,-0.7 -2,-1.8 -2.4,-2.2 c -0.1,-0.1 -0.3,-0.2 -0.4,-0.3 c -0.3,-0.2 -2,-1.8 -2.5,-2.2 c -0.7,-0.6 -2.8,-2.5 -3.6,-3.2 c -1.5,-1.3 -1.7,-1.4 -1.6,-1.5 c 0,-0 0.7,0.2 1.4,0.6 c 3.4,1.7 3.5,1.7 3.3,1.4 c -0.1,-0.1 -0.2,-0.2 -0.2,-0.2 c -0.1,0 -1,-0.6 -2.1,-1.3 c -1.1,-0.7 -2.3,-1.5 -2.6,-1.7 c -0.9,-0.6 -0.8,-0.6 0.6,-0.3 c 0.4,0.1 1,0.3 1.2,0.3 c 1,0.2 1.5,0.3 1.6,0.4 c 0.1,0 0.5,0.1 1,0.3 c 0.5,0.1 1.5,0.3 2.2,0.5 c 1.8,0.4 2,0.4 2.9,0.5 c 0.4,0.1 0.9,0.1 1.1,0.2 c 0.7,0.2 0.9,0 0.8,-0.7 c -0.1,-0.6 -0.3,-1.7 -0.5,-2.2 c -0.1,-0.1 -0.1,-0.4 -0.2,-0.6 c -0.1,-0.4 -0.3,-0.6 -0.6,-0.7 c -0.1,0 -0.4,-0 -0.6,-0 c -0.4,-0 -0.2,-0.2 0.2,-0.2 c 0.4,-0 0.2,-1.1 -0.3,-1.6 c -0,-0 -0.2,-0.2 -0.3,-0.5 c -0.4,-0.5 -0.8,-1 -1.6,-1.6 l -0.6,-0.5 l -2.7,0 c -1.6,0 -3,-0 -3.5,-0.1 c -1.1,-0.2 -0.8,-0.3 0.7,-0.3 c 0.6,-0 1.4,-0.1 1.7,-0.1 c 0.3,-0.1 0.8,-0.1 1.1,-0.2 c 1.3,-0.2 1.6,-0.5 0.9,-1 c -0.1,-0.1 -0.5,-0.3 -0.7,-0.5 c -2.3,-1.9 -2.5,-2.1 -3.1,-2.1 c -1.3,0 -5.9,-0.4 -6.2,-0.5 c -0.1,-0 0.2,-0.1 0.7,-0.3 c 1.5,-0.3 2.7,-0.7 3.3,-1.1 c 0.6,-0.4 0.6,-0.3 -0.9,-1 c -0.3,-0.2 -0.9,-0.4 -1.8,-0.8 c -1.7,-0.8 -2.2,-1 -2.4,-0.8 c -0.1,0.1 -0.3,0.1 -0.4,0.1 c -0.1,0 -0.3,0 -0.3,0.1 c -0.5,0.5 -3.8,0.3 -6.1,-0.5 c -0.8,-0.3 -0.6,-0.3 0.6,-0.3 c 1.1,0 2.1,-0.2 2.5,-0.6 c 0.1,-0 0.2,-0.1 0.2,-0.1 c 0.2,0 1.9,-0.8 1.9,-0.9 c 0,-0.1 0.1,-0.2 0.2,-0.3 c 1.1,-1.2 1.1,-1.2 0.2,-1.2 c -0.6,0 -0.8,-0.1 -1.4,-0.3 c -0.4,-0.2 -0.7,-0.3 -0.8,-0.3 c -0.1,0 -0.1,-0.2 0,-0.2 c 0.1,-0 0.4,-0.1 0.8,-0.2 c 0.4,-0.1 0.8,-0.2 1,-0.3 c 0.2,-0.1 0.6,-0.2 0.9,-0.2 c 0.3,-0.1 0.7,-0.2 0.8,-0.2 c 0.7,-0.3 2.4,-0.8 2.6,-0.8 c 0.1,0 0.2,-0 0.3,-0.1 c 0.1,-0.1 1,-0.4 1.3,-0.4 c 0.3,0 0.3,-0.3 -0.1,-0.4 c -0.2,-0 -0.5,-0.1 -0.7,-0.2 c -0.2,-0.1 -0.7,-0.2 -1.1,-0.2 c -1.1,-0.2 -1.1,-0.3 0.1,-0.5 c 1.2,-0.2 2.1,-0.4 2.9,-0.7 c 0.3,-0.1 0.7,-0.2 0.9,-0.3 c 0.5,-0.1 1.1,-1 1.1,-1.5 c 0,-0.4 0.1,-0.4 0.8,-0.5 c 0.8,-0.1 2.6,-0.4 3.6,-0.7 c 0.2,-0.1 0.6,-0.2 0.9,-0.2 c 0.3,-0.1 0.8,-0.2 1.1,-0.3 c 0.3,-0.1 0.8,-0.2 1.1,-0.3 c 0.3,-0.1 0.9,-0.2 1.4,-0.3 c 1.9,-0.5 2.4,-0.6 3.5,-0.8 c 0.6,-0.2 1.2,-0.3 1.4,-0.3 c 0.1,-0 0.3,-0.1 0.5,-0.2 c 0.2,-0.2 0.2,-0.2 -0.2,-0.1 c -0.4,0.1 -4.3,0.2 -5.8,0.2 c -1.4,0 -1.1,-0.2 0.6,-0.4 c 0.6,-0.1 1.2,-0.1 1.3,-0.2 c 0.1,-0 0.6,-0.1 1.2,-0.2 c 0.6,-0.1 1.3,-0.2 1.7,-0.3 c 0.4,-0.1 1.1,-0.2 1.5,-0.3 c 0.4,-0.1 1.4,-0.2 2,-0.4 c 0.7,-0.1 1.4,-0.3 1.7,-0.4 c 1.2,-0.2 1.5,-0.3 2.1,-0.4 c 0.4,-0.1 0.9,-0.2 1.2,-0.3 c 0.3,-0.1 0.7,-0.1 0.9,-0.2 c 0.2,-0.1 0.7,-0.2 1,-0.3 c 0.3,-0.1 0.8,-0.2 1,-0.3 c 0.2,-0.1 0.5,-0.2 0.7,-0.2 c 0.2,-0 0.6,-0.2 1,-0.3 c 0.6,-0.2 1.2,-0.3 1.9,-0.4 c 0.2,-0 0.4,-0.1 0.4,-0.2 c 0.1,-0.1 -0.8,-0.1 -1.8,0.1 c -0.3,0.1 -0.9,0.2 -1.4,0.2 c -0.4,0.1 -1.1,0.1 -1.4,0.2 c -0.3,0.1 -1.1,0.2 -1.7,0.3 c -0.6,0.1 -1.8,0.2 -2.6,0.4 c -0.8,0.1 -1.9,0.2 -2.5,0.3 c -0.6,0.1 -1.4,0.2 -1.9,0.2 c -0.4,0.1 -1.4,0.1 -2.2,0.2 c -0.7,0.1 -1.7,0.2 -2,0.2 c -1.3,0.2 -5.5,0.5 -5.3,0.3 c 0.1,-0.1 1.3,-0.4 2.9,-0.6 c 0.3,-0.1 0.7,-0.1 1,-0.2 c 0.2,-0.1 0.8,-0.2 1.3,-0.3 c 0.5,-0.1 1.1,-0.3 1.3,-0.3 c 0.5,-0.1 2,-0.5 2.5,-0.6 c 0.2,-0.1 0.6,-0.1 0.8,-0.2 c 0.2,-0.1 0.6,-0.1 0.8,-0.2 c 0.9,-0.2 1.3,-0.3 1.4,-0.4 c 0.1,-0.1 0.2,-0.1 0.3,-0.1 c 0.1,0 0.3,-0 0.5,-0.1 c 0.1,-0.1 0.6,-0.2 1.1,-0.4 c 0.5,-0.2 1.1,-0.3 1.3,-0.4 c 0.2,-0.1 0.5,-0.2 0.8,-0.3 c 0.2,-0.1 0.5,-0.2 0.5,-0.2 c 0.1,-0 0.3,-0.1 0.6,-0.2 c 0.9,-0.3 1.9,-0.7 2.7,-1.1 c 0.4,-0.2 1,-0.5 1.2,-0.6 c 1.1,-0.5 3,-2 2.7,-2.1 c -0.1,-0 -0.5,0.1 -0.9,0.3 c -1,0.4 -2.1,0.8 -2.2,0.8 c -0.1,0 -0.2,0 -0.3,0.1 c -0.2,0.1 -1.3,0.4 -2.5,0.7 c -0.2,0.1 -0.5,0.1 -0.7,0.2 c -0.2,0 -0.6,0.2 -1,0.3 c -0.4,0.1 -0.8,0.2 -0.9,0.3 c -0.1,0.1 -0.6,0.2 -1,0.3 c -0.4,0.1 -1.1,0.2 -1.4,0.3 c -0.3,0.1 -0.8,0.2 -1.1,0.2 c -0.8,0.1 -2.7,0.5 -2.8,0.6 c -0.1,0.1 -0.7,0.1 -0.7,-0 c 0,-0.1 0.2,-0.1 0.3,-0.2 c 0.2,-0 0.5,-0.2 0.7,-0.3 c 0.2,-0.1 0.5,-0.2 0.5,-0.2 c 0.2,0 3.6,-1.9 4.1,-2.2 c 0.1,-0.1 1.1,-0.7 2.1,-1.4 c 2.3,-1.5 3,-2.2 1.5,-1.4 c -0.2,0.1 -0.4,0.2 -0.4,0.2 c -0.1,0 -0.3,0.1 -0.5,0.2 c -0.2,0.1 -0.6,0.2 -0.8,0.3 c -0.2,0.1 -0.4,0.2 -0.6,0.2 c -0.5,0.2 -1.7,0.6 -2.8,1 c -0.6,0.2 -1.3,0.4 -1.4,0.4 c -0.2,0.1 -2.1,0.7 -3.2,1 c -0.1,0 -0.5,0.1 -0.8,0.2 c -0.3,0.1 -0.6,0.2 -0.8,0.2 c -0.3,0.1 -1.5,0.5 -2.7,0.8 c -0.5,0.1 -1.1,0.3 -1.3,0.3 c -0.3,0.1 -0.5,0.1 -1.5,0.4 c -0.9,0.2 -1.3,0.3 -1.5,0.4 c -0.3,0.1 -0.8,0.2 -0.8,0.1 c -0.1,-0.1 0.1,-0.2 0.8,-0.6 c 1.1,-0.6 1.9,-1.1 2,-1.2 c 0.1,-0.1 0.4,-0.3 0.7,-0.5 c 0.3,-0.2 0.8,-0.5 1.1,-0.7 c 0.3,-0.2 1,-0.6 1.5,-0.9 c 0.5,-0.3 1.3,-0.7 1.6,-1 c 0.3,-0.2 0.7,-0.4 0.7,-0.4 c 0,0 0.2,-0.1 0.4,-0.2 c 0.2,-0.1 0.4,-0.3 0.5,-0.3 c 2.4,-1.4 5.1,-4 5.1,-4.9 c 0,-0.1 0.1,-0.2 0.2,-0.2 c 0.4,-0.3 0.1,-0.6 -0.3,-0.3 c -0.3,0.2 -2.2,1.4 -2.8,1.7 c -0.2,0.1 -0.8,0.5 -1.4,0.8 c -0.6,0.3 -1.6,0.9 -2.2,1.2 c -1.1,0.6 -1.5,0.8 -2.9,1.6 c -1.9,1.1 -5.8,3 -8.9,4.6 c -1.3,0.6 -1.1,0.4 0.6,-0.8 c 0.6,-0.4 1.2,-0.9 1.4,-1.1 c 0.2,-0.2 0.4,-0.4 0.5,-0.5 c 1,-0.9 3.6,-4 3.6,-4.3 c 0,-0.1 0.1,-0.1 0.1,-0.1 c 0.1,0 0.2,-0.1 0.2,-0.3 c 0.1,-0.2 0.2,-0.4 0.3,-0.6 c 0.2,-0.3 0.5,-0.8 0.5,-0.8 c 0,-0.2 -0.9,0.5 -2,1.5 c -0.1,0.1 -0.3,0.2 -0.5,0.4 c -0.2,0.2 -0.5,0.4 -0.5,0.5 c -0.2,0.2 -1.7,1.4 -2.4,1.9 c -0.3,0.3 -0.8,0.6 -1.1,0.9 c -0.5,0.4 -2,1.5 -2.4,1.7 c -0.1,0.1 -0.3,0.2 -0.5,0.4 c -0.2,0.1 -0.4,0.3 -0.5,0.4 c -0.1,0.1 -0.5,0.3 -0.9,0.6 c -0.4,0.3 -0.8,0.5 -0.8,0.5 c -0.1,0 -1.1,0.7 -1.3,0.8 c -0.2,0.2 -1,0.6 -2.3,1.3 c -0.7,0.3 -1.3,0.7 -1.5,0.7 c -0.1,0.1 -0.6,0.3 -1.1,0.4 c -0.4,0.2 -0.9,0.4 -1,0.4 c -0.5,0.3 -1.8,0.7 -2.6,0.8 c -0.3,0.1 -0.8,0.2 -1.3,0.3 c -1.1,0.2 -2,0.2 -1.5,-0 c 0.2,-0.1 0.5,-0.2 0.8,-0.2 c 2,-0.3 5.5,-1.9 7.5,-3.6 c 1.6,-1.3 3.5,-3.6 4.1,-4.9 c 0.3,-0.7 0.2,-0.6 -1.1,0.7 c -1.2,1.2 -3.3,2.9 -4.2,3.5 c -0.2,0.2 -0.8,0.5 -1.2,0.8 c -0.4,0.3 -0.8,0.5 -0.8,0.5 c -0.1,0 -0.2,0.1 -0.4,0.2 c -0.4,0.3 -2.1,1.1 -2.8,1.4 c -0.6,0.2 -1,0.3 -0.6,0 c 0.9,-0.5 1.1,-0.6 1.5,-1 c 0.7,-0.7 0.8,-1 0.5,-2.4 c -0.2,-1.3 -0.2,-1.3 -0.6,-1.2 c -0.2,0 -0.6,0.1 -0.9,0.2 c -0.3,0.1 -1,0.2 -1.6,0.3 c -1.5,0.3 -1.9,0.2 -0.6,-0.2 c 0.3,-0.1 0.7,-0.3 1,-0.4 c 0.2,-0.1 1.1,-0.5 2,-1 c 0.9,-0.4 1.6,-0.8 1.7,-0.9 c 0.2,-0.3 0.4,-1.3 0.4,-1.9 c 0,-0.3 0.1,-0.9 0.2,-1.2 c 0.1,-0.3 0.1,-0.6 0.1,-0.7 c -0.1,-0.1 -0.7,0 -0.9,0.1 c -0.1,0.1 -0.2,0.1 -0.3,0 c -0.3,-0.1 -0.1,-0.2 0.9,-0.5 c 0.9,-0.3 1.2,-0.5 1.2,-0.8 c 0,-0.1 0.1,-0.6 0.3,-1 c 0.1,-0.4 0.3,-0.9 0.3,-1 c 0,-0.1 0.1,-0.3 0.1,-0.5 c 0,-0.1 0.1,-0.4 0.2,-0.5 c 0.1,-0.2 0.3,-0.5 0.5,-0.8 c 0.5,-0.8 0.5,-0.8 -0.6,-0.6 c -0.5,0.1 -0.6,0.1 -0.7,0 c -0.1,-0.1 -0.1,-0.1 0.1,-0.1 c 0.1,0 0.3,-0.1 0.5,-0.2 c 0.1,-0.1 0.3,-0.2 0.4,-0.2 c 0.3,0 0.8,-0.2 1.2,-0.4 c 0.2,-0.1 0.4,-0.1 0.5,-0.1 c 0.1,0 0.4,-0.1 0.6,-0.2 c 0.2,-0.1 0.5,-0.2 0.6,-0.2 c 0.1,0 0.3,-0.1 0.6,-0.3 c 0.2,-0.1 0.4,-0.3 0.5,-0.3 c 0.1,0 1.2,-0.6 1.8,-0.9 c 1.2,-0.7 2.5,-1.8 2.5,-2.1 c 0,-0.1 -0.5,-0.1 -1.6,0.1 c -1.6,0.3 -1.7,0.2 -0.6,-0.2 c 1.7,-0.7 3.6,-2.1 3.6,-2.5 c 0,-0.1 -1,-0.1 -1.3,0.1 c -0.1,0.1 -0.5,0.1 -0.9,0.2 c -1.1,0.1 -1.4,0.2 -1.8,0.3 c -0.7,0.2 -0.8,-0 -0.1,-0.3 c 3.1,-1.1 6,-3 7.5,-5 c 0.7,-1 0.5,-1.1 -0.8,-0.6 c -0.3,0.1 -0.8,0.3 -1.1,0.4 c -0.7,0.2 -1.8,0.6 -1.9,0.7 c -0.1,0 -0.2,0.1 -0.4,0.1 c -0.2,0 -0.5,0.2 -0.7,0.3 c -0.2,0.1 -0.5,0.2 -0.6,0.2 c -0.1,0 -0.2,0 -0.2,0.1 c -0.1,0.1 -1.1,0.4 -2.9,1.1 c -0.5,0.2 -1.1,0.4 -1.2,0.4 c -0.1,0 -0.4,0.1 -0.6,0.2 c -0.2,0.1 -0.6,0.2 -0.8,0.3 c -0.2,0.1 -0.5,0.2 -0.6,0.2 c -0.6,0.2 -1.1,0.4 -1.4,0.5 c -0.5,0.1 -0.7,0.2 -1.2,0.4 c -0.4,0.2 -0.6,0.1 -0.5,-0.1 c 0.1,-0.1 2.3,-1.6 4.5,-3.1 c 2.4,-1.6 3.1,-2.2 4.7,-3.5 c 2.2,-1.9 5.5,-5.9 6.3,-7.4 c 0,-0.1 0.3,-0.4 0.5,-0.8 c 0.3,-0.4 0.5,-0.7 0.5,-0.8 c 0,-0.1 -0.4,-0 -0.5,0.1 c -0.1,0.2 -0.8,0.6 -1.7,1.2 c -0.3,0.2 -0.8,0.5 -1.3,0.8 c -0.5,0.3 -1,0.6 -1.1,0.6 c -0.1,0.1 -0.4,0.2 -0.7,0.4 c -0.3,0.2 -0.6,0.4 -0.9,0.6 c -2,1.3 -2.8,1.8 -3.8,2.4 c -0.6,0.4 -1.2,0.7 -1.3,0.7 c -0.1,0 -0.1,0 -0.2,0.1 c -0,0.1 -0.6,0.5 -1.4,0.9 c -0.7,0.5 -1.7,1 -2,1.3 c -0.9,0.6 -1.7,1.1 -2.2,1.4 c -0.2,0.1 -0.5,0.3 -0.6,0.4 c -0.1,0.1 -0.3,0.2 -0.4,0.3 c -0.4,0.1 -0.2,-0.2 1.3,-1.8 c 0.2,-0.2 0.4,-0.4 0.5,-0.5 c 0.1,-0.1 0.4,-0.5 0.7,-0.8 c 0.5,-0.6 1,-1.1 2.3,-2.5 c 0.7,-0.8 2.3,-2.5 2.8,-3 c 0.7,-0.7 2.4,-4.1 2.7,-5.2 c 0,-0.2 0.2,-0.4 0.3,-0.6 c 0.1,-0.2 0.3,-0.6 0.4,-1 c 0.1,-0.4 0.3,-0.7 0.3,-0.9 c 0.7,-1.1 0.2,-1 -1.1,0.3 c -1.6,1.5 -3.1,2.9 -3.9,3.7 c -1.1,1 -3.4,3.1 -5.5,5.2 c -0.6,0.6 -1.3,1.2 -1.4,1.3 c -0.1,0.1 -0.9,0.8 -1.6,1.6 c -1.5,1.5 -2.3,1.9 -1.2,0.6 c 0.3,-0.4 0.6,-0.7 0.6,-0.8 c 0,-0.1 0.1,-0.2 0.2,-0.3 c 0.1,-0.1 0.3,-0.4 0.5,-0.6 c 0.1,-0.2 0.3,-0.4 0.3,-0.4 c 0.1,0 0.1,-0.1 0.2,-0.2 c 0.1,-0.4 0.9,-1.4 1,-1.4 c 0.1,0 0.1,-0.1 0.1,-0.2 c 0,-0.1 0.1,-0.3 0.3,-0.5 c 0.2,-0.2 0.3,-0.4 0.3,-0.5 c 0,-0.1 0.8,-1.1 0.9,-1.3 c 0.1,-0.1 1.4,-2 1.8,-2.7 c 0.6,-1 1.3,-2.7 1.5,-3.4 c 0,-0.2 0.1,-0.5 0.2,-0.6 c 0.1,-0.3 0.2,-1.9 0,-1.9 c -0.1,-0 -0.3,0.2 -0.5,0.4 z m -44,62.2 c 0.5,0.2 0.9,0.9 0.5,0.9 c -0.4,0 -2.1,1 -2.3,1.3 c -0,0.1 -0.2,0.1 -0.3,0.1 c -0.3,0 -0.3,-0.3 0.1,-0.8 c 0.2,-0.3 0.3,-0.5 0.3,-0.5 c 0,-0.6 1.1,-1.2 1.8,-1 z";
+const crowSvg=(cls)=>`<svg class="${cls||"crowic"}" viewBox="-2 -2 97 104" aria-hidden="true"><path d="${CROW_PATH}" fill="currentColor"/></svg>`;
+const perchSvg=crowSvg;
+let crestN=0;
+/* the Karasuno crest: ringed seal, perched crow, ribbon. Accent comes from currentColor */
+const crestSvg=(cls,word)=>{const id="crst"+(++crestN),w=esc(word||"FLY");return `<svg class="${cls||"crest"}" viewBox="0 0 120 120" aria-hidden="true">
+  <defs><path id="${id}t" d="M60 60 m-43 0 a43 43 0 1 1 86 0"/><path id="${id}b" d="M60 60 m-47 0 a47 47 0 0 0 94 0"/><radialGradient id="${id}g" cx=".5" cy=".38" r=".7"><stop offset="0" stop-color="#2a2530"/><stop offset="1" stop-color="#0d0c10"/></radialGradient></defs>
+  <circle cx="60" cy="60" r="57" fill="#0d0c10" stroke="currentColor" stroke-width="3"/><circle cx="60" cy="60" r="51" fill="none" stroke="currentColor" stroke-width=".8" stroke-dasharray="1.6 2.4" opacity=".7"/>
+  <circle cx="60" cy="60" r="36" fill="url(#${id}g)" stroke="currentColor" stroke-width="1.6"/>
+  <text font-family="var(--display),Impact,sans-serif" font-size="10.5" font-weight="800" letter-spacing="3.2" fill="currentColor"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">KARASUNO</textPath></text>
+  <text font-family="var(--display),Impact,sans-serif" font-size="6.4" font-weight="700" letter-spacing="2.2" fill="#f4efe6" opacity=".75"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">VOLLEYBALL CLUB</textPath></text>
+  <g fill="currentColor"><path d="M15 60l-4 -2.6v5.2zM105 60l4 -2.6v5.2z"/></g>
+  <g transform="translate(33.5 20) scale(.58)"><path d="${CROW_PATH}" fill="currentColor"/></g>
+  <path d="M33 82h54l-5 6 5 6H33l5-6z" fill="currentColor"/><text x="60" y="91.6" text-anchor="middle" font-family="var(--display),Impact,sans-serif" font-size="8" font-weight="900" letter-spacing="2.4" fill="#0d0c10">${w}</text></svg>`;};
+function crowAt(g,x,y,s,flip,col){g.save();g.translate(x,y);const k=s*.6;g.scale(flip?-k:k,k);g.translate(-46.5,-50);g.fillStyle=col;g.fill(new Path2D(CROW_PATH));g.restore();}
 function featherAt(g,x,y,len,rot,col){g.save();g.translate(x,y);g.rotate(rot);g.fillStyle=col;g.beginPath();g.moveTo(0,-len/2);g.bezierCurveTo(len*.28,-len*.25,len*.22,len*.25,0,len/2);g.bezierCurveTo(-len*.18,len*.2,-len*.24,-len*.2,0,-len/2);g.fill();
   g.strokeStyle="rgba(255,255,255,.18)";g.lineWidth=1;g.beginPath();g.moveTo(0,-len/2);g.lineTo(0,len/2+3);g.stroke();g.restore();}
 const rgbA=a=>`rgba(${ME().col.rgb},${a})`;
@@ -192,6 +303,17 @@ VB.genBgExtra.sky=function(g,W,H){const bg=g.createLinearGradient(0,0,0,H);bg.ad
   bolt(W*.18,0,H*.45,4);bolt(W*.83,0,H*.38,3);
   const moon=g.createRadialGradient(W*.66,H*.2,0,W*.66,H*.2,90);moon.addColorStop(0,"rgba(255,232,170,.95)");moon.addColorStop(.35,"rgba(255,194,26,.4)");moon.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=moon;g.fillRect(0,0,W,H);
   floorLines(g,W,H,"rgba(255,194,26,.85)",5);for(let i=0;i<4;i++)crowAt(g,W*(.1+i*.24),H*(.1+(i%2)*.12),.8,i%2===1,"rgba(0,0,0,.7)");};
+VB.genBgExtra.storm=function(g,W,H){const A=on()?ME().col.a:"#ff7a1a",bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#05060c");bg.addColorStop(.5,"#151a2b");bg.addColorStop(1,"#0b0a0c");g.fillStyle=bg;g.fillRect(0,0,W,H);
+  /* clouds */for(let i=0;i<40;i++){const x=Math.random()*W,y=Math.random()*H*.45,r=60+Math.random()*140,c=g.createRadialGradient(x,y,0,x,y,r);c.addColorStop(0,"rgba(60,66,90,.55)");c.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=c;g.fillRect(x-r,y-r,r*2,r*2);}
+  const bolt=(x,y,len,w,col)=>{g.save();g.strokeStyle=col;g.shadowColor=A;g.shadowBlur=30;g.lineWidth=w;g.beginPath();g.moveTo(x,y);let cx=x,cy=y;while(cy<y+len){cx+=(Math.random()-.5)*70;cy+=18+Math.random()*34;g.lineTo(cx,cy);if(Math.random()<.18){g.moveTo(cx,cy);g.lineTo(cx+(Math.random()-.5)*120,cy+60);g.moveTo(cx,cy);}}g.stroke();g.restore();};
+  bolt(W*.3,0,H*.62,5,"#fff6d6");bolt(W*.72,0,H*.5,3,"#ffe3b0");
+  /* rain */g.strokeStyle="rgba(180,200,255,.15)";g.lineWidth=1;for(let i=0;i<260;i++){const x=Math.random()*W,y=Math.random()*H;g.beginPath();g.moveTo(x,y);g.lineTo(x-6,y+22);g.stroke();}
+  floorLines(g,W,H,A,5);for(let i=0;i<6;i++)crowAt(g,W*(.08+i*.17),H*(.12+(i%3)*.08),.7+(i%2)*.4,i%2===0,"rgba(0,0,0,.75)");};
+VB.genBgExtra.nationals=function(g,W,H){const A=on()?ME().col.a:"#ff7a1a",bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#030305");bg.addColorStop(1,"#1a1216");g.fillStyle=bg;g.fillRect(0,0,W,H);
+  /* tiers of seats with phone lights */for(let r=0;r<9;r++){const y=H*(.08+r*.055);g.fillStyle=`rgba(${30+r*4},${24+r*3},${32+r*4},1)`;g.fillRect(0,y,W,H*.05);for(let i=0;i<70;i++){if(Math.random()<.25){g.fillStyle=Math.random()<.2?A:"rgba(255,250,230,.8)";g.fillRect(Math.random()*W,y+Math.random()*H*.04,2,2);}}}
+  /* spotlights */[.2,.5,.8].forEach((x,i)=>{const gr=g.createLinearGradient(W*x,0,W*.5,H*.75);gr.addColorStop(0,"rgba(255,240,210,.35)");gr.addColorStop(1,"rgba(255,240,210,0)");g.fillStyle=gr;g.beginPath();g.moveTo(W*x-10,0);g.lineTo(W*x+10,0);g.lineTo(W*.5+160,H*.78);g.lineTo(W*.5-160,H*.78);g.closePath();g.fill();});
+  /* the court glows */const cf=g.createRadialGradient(W*.5,H*.78,10,W*.5,H*.78,W*.5);cf.addColorStop(0,"rgba(255,150,70,.45)");cf.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=cf;g.fillRect(0,0,W,H);floorLines(g,W,H,"#f4efe6",5);
+  g.fillStyle=A;g.font="italic 800 64px 'Barlow Condensed','Arial Narrow',sans-serif";g.textAlign="center";g.fillText("NATIONALS",W*.5,H*.62);};
 
 /* ---------- site skin: colour variables set from the current person ---------- */
 function applySkin(){const want=on()&&G().skin!==false,R=document.documentElement;R.dataset.skin=want?"crow":"";
@@ -207,7 +329,7 @@ let wrongN=0;
 const codeForm=(ph)=>`<form class="row ccform" id="ccForm" autocomplete="off"><input class="in" id="ccIn" type="text" autocapitalize="off" spellcheck="false" placeholder="${ph}" aria-label="Secret code" maxlength="40"><button class="btn primary" type="submit">Unlock</button></form><p class="small ccmsg" id="ccMsg" role="status" aria-live="polite"></p>`;
 function renderCodeCard(){const host=$("#crowCode");if(!host||!VB.state.profile)return;
   if(!on()){host.className="card crowcode";host.innerHTML=`<div class="kicker">Secret code</div><p class="small muted">Got a code from someone? Type it here to unlock something.</p>${codeForm("Enter a code")}`;return;}
-  const c=C(),p=ME();host.className="card crowcode on";host.innerHTML=`<div class="cchead">${crowSvg("ccbird")}<div><div class="kicker">${esc(p.edition)} · ${esc(p.name)}</div><b class="cctitle">${esc(titleText()||p.tag)}</b></div></div>
+  const c=C(),p=ME();host.className="card crowcode on";host.innerHTML=`<div class="cchead">${crestSvg("ccbird")}<div><div class="kicker">${esc(p.edition)} · ${esc(p.name)}</div><b class="cctitle">${esc(titleText()||p.tag)}</b></div></div>
     <p class="small">${c.feathers} feathers · ${c.badges.length}/${BADGES.length} badges · season ${c.road.length}/${ROAD.length}</p>
     <div class="row"><a class="btn primary" href="#nest">Enter the Crow's Nest</a><button class="btn sm" type="button" data-crow-skin>${G().skin!==false?"Use the original colours":"Use the secret colours"}</button></div>
     <details class="ccmore"><summary class="small">Have a different code?</summary>${codeForm("Another code")}</details>`;}
@@ -225,9 +347,9 @@ function unlock(id){const g=G();g.on=true;g.who=id;g.skin=true;const c=C(),p=ME(
 function intro(){let ov=$("#crowIntro");if(ov)ov.remove();const p=ME();ov=document.createElement("div");ov.id="crowIntro";ov.className="crowintro";ov.setAttribute("role","dialog");ov.setAttribute("aria-modal","true");ov.setAttribute("aria-label","Secret unlocked");
   const parts=p.name.toUpperCase().split(/\s+/);
   ov.innerHTML=`<canvas class="ci-fx" aria-hidden="true"></canvas><div class="ci-slash s1"></div><div class="ci-slash s2"></div><div class="ci-slash s3"></div>
-    <div class="ci-body"><div class="ci-k">Secret code accepted · ${esc(p.edition)}</div>${crowSvg("ci-crow")}<div class="ci-l1">Welcome to</div><div class="ci-l2">KARASUNO</div>
+    <div class="ci-body"><div class="ci-k">Secret code accepted · ${esc(p.edition)}</div>${crestSvg("ci-crow","FLY HIGH")}<div class="ci-l1">Welcome to</div><div class="ci-l2">KARASUNO</div>
      <div class="ci-name">${parts.map(w=>`<span>${esc(w)}</span>`).join("")}</div>
-     <p class="ci-sub">Secret colours · your own kit · new balls and effects · titles · 3 games · a season to win</p>
+     <p class="ci-sub">Secret colours · your own kit · new balls and effects · titles · 5 arcade games · two seasons to win</p>
      <button class="btn ci-go" type="button" id="ciGo">Enter the Crow's Nest</button></div>`;
   document.body.appendChild(ov);document.body.classList.add("noscroll");sfx("thunder");setTimeout(()=>sfx("unlock"),900);
   const cv=$(".ci-fx",ov),g=cv.getContext("2d"),fs=[];let raf=0,last=performance.now();
@@ -258,7 +380,7 @@ function bootScreen(){const old=$("#crowBoot");if(old)old.remove();const c=C(),p
       <g class="cb-sweep"><path d="M200 200 L200 14 A186 186 0 0 1 331.5 68.5 Z" fill="url(#cbg)"/></g>
       ${ring(186,1,"2 6","r1",rgbA(.55))}${ring(170,6,"60 14 8 14","r2")}${ring(150,1.5,"300 40 20 40","r3","rgba(244,239,230,.6)")}
       ${ring(132,14,"4 3","r4",rgbA(.35))}${ring(112,2,"120 60","r5")}<circle class="r6" cx="200" cy="200" r="96" fill="${rgbA(.07)}" stroke="${rgbA(.8)}" stroke-width="1"/>
-      </svg>${crowSvg("cb-crow")}<div class="cb-pct" id="cbPct">0%</div></div>
+      </svg>${crestSvg("cb-crow")}<div class="cb-pct" id="cbPct">0%</div></div>
       <div class="cb-log" id="cbLog" aria-hidden="true"></div></div>
     <div class="cb-hello"><div class="cb-greet" id="cbGreet"></div><div class="cb-sub" id="cbSub"></div></div>`;
   document.body.appendChild(ov);document.body.classList.add("noscroll");
@@ -345,15 +467,26 @@ const QUIZ=[
   {f:"att",q:"What is a 'slide' attack?",a:["A one-foot take-off hit, usually by the middle behind the setter","A dive to save the ball","A set that rolls along the net","A serve that skids"],e:"Like a layup: run along the net, take off from one foot, swing."}
 ];
 
+/* extra questions and drills from crows-data.js; the original questions count as medium difficulty */
+QUIZ.forEach(q=>{if(!q.d)q.d=2;});
+if(VB.CROW_DATA){(VB.CROW_DATA.quiz||[]).forEach(q=>QUIZ.push(q));(VB.CROW_DATA.camp||[]).forEach(q=>CAMP.push(q));}
+const CHALLENGE=(VB.CROW_DATA&&VB.CROW_DATA.challenge)||[];
+const chalToday=()=>CHALLENGE.length?CHALLENGE[parseInt(hash("chal"+today()+who()),36)%CHALLENGE.length]:null;
+
 /* ---------- the Nest page ---------- */
-const TABS=[["dig","Dig Defence"],["quick","Freak Quick"],["serve","Jump Serve"],["iq","Volleyball IQ"],["camp","Training camp"],["season","Season"],["badges","Badges and shop"],["style","Style"]];
+const TABS=[["card","Player card"],["dig","Dig Defence"],["quick","Freak Quick"],["serve","Jump Serve"],["block","Block Party"],["setter","Setter's Vision"],["iq","Volleyball IQ"],["camp","Training camp"],["season","Season"],["badges","Badges and shop"],["style","Style"]];
+const ARCADE=["dig","quick","serve","block","setter"];
+/* the Nest's helpers, handed to the arcade engine */
+const KIT={C:()=>C(),G:()=>G(),ME:()=>ME(),who:()=>who(),save:()=>save(),award:n=>award(n),sfx:(k,a)=>sfx(k,a),perks:()=>perks(),checkBadges:()=>checkBadges(),refreshStats:()=>refreshStats(),
+  crowAt:(...a)=>crowAt(...a),crestSvg:(c,w)=>crestSvg(c,w),perchSvg:c=>perchSvg(c),featherAt:(...a)=>featherAt(...a),isNest:()=>isNest(),reduced:()=>reduced(),today:()=>today(),hash:x=>hash(x),col:()=>ORANGE,rgb:()=>ME().col.rgb};
+if(VB.crowArcade)VB.crowArcade.K=KIT;
 let tab=null,loopOn=false,game=null,bgFx=null,quiz=null,skipBoot=false;
 const isNest=()=>{const v=$("#v-nest");return v&&!v.hidden;};
 function render(sub){const host=$("#v-nest");if(!host)return;if(!on()){location.hash="#profile";return;}
   const p=ME();if(sub&&TABS.some(t=>t[0]===sub))tab=sub;if(!tab)tab=p.focus==="att"?"quick":"dig";const c=C(),pr=VB.state.profile||{},parts=p.name.toUpperCase().split(/\s+/);
   stopGame();
   host.innerHTML=`<div class="nhero"><canvas class="nfx" aria-hidden="true"></canvas><div class="nbig" aria-hidden="true">${esc(p.big)}</div>
-    <div class="wrap nhwrap"><div class="nkick">${crowSvg("nk")}<span>${esc(p.edition)} · Crow's Nest</span></div>
+    <div class="wrap nhwrap"><div class="nkick">${perchSvg("nk")}<span>${esc(p.edition)} · Crow's Nest</span></div>
       <h1 class="nname">${parts.map(w=>`<span>${esc(w)}</span>`).join("")}</h1>
       <div class="ntitle"><b id="nTitle">${esc(titleText()||p.tag)}</b><span>${esc((VB.POS[pr.pos]||VB.POS.any).label)}${pr.number!=null?" · No. "+esc(pr.number):""}</span></div>
       <p class="nline">“${esc(p.lines[dayIdx(p.lines.length,who())])}”</p>
@@ -364,9 +497,14 @@ function render(sub){const host=$("#v-nest");if(!host)return;if(!on()){location.
       <div id="nPanel" role="tabpanel"></div></div>`;
   refreshStats();panel();startLoop();if(!skipBoot)bootScreen();skipBoot=false;}
 function refreshStats(){const el=$("#nStats");if(!el)return;const c=C(),nm=ROAD[c.road.length];
-  el.innerHTML=`<div><b>${c.feathers}</b><span>Feathers</span></div><div><b>${c.badges.length}/${BADGES.length}</b><span>Badges</span></div><div><b>${c.road.length}/${ROAD.length}</b><span>Season</span></div><div><b>${Math.round(skills(c).reduce((a,b)=>a+b,0)/SKILLS.length)}</b><span>Overall</span></div><div><b>${campDays(c)}</b><span>Camp days</span></div>${nm?`<div class="nnext"><b>vs ${esc(nm.opp)}</b><span>Next match · ${esc(nm.need)}</span></div>`:""}`;
+  el.innerHTML=`<div><b>${c.feathers}</b><span>Feathers</span></div><div><b>${c.badges.length}/${BADGES.length}</b><span>Badges</span></div><div><b>${c.road.length}/${ROAD.length}</b><span>Season</span></div><div class="nrank"><b>${GRADES[Math.min(5,Math.floor(overall(c)))]}</b><span>LV ${level(c).lv} · ${RANKS[Math.min(5,Math.floor(overall(c)))]}</span></div><div><b>${starTotal(c)}</b><span>★ Stars</span></div><div><b>${campDays(c)}</b><span>Camp days</span></div>${nm?`<div class="nnext"><b>vs ${esc(nm.opp)}</b><span>Next match · ${esc(nm.need)}</span></div>`:""}`;
   const t=$("#nTitle");if(t)t.textContent=titleText()||ME().tag;renderCodeCard();}
 function gameHead(k,title,best,desc){return `<div class="ngh"><div><div class="kicker">Mini-game</div><h3>${title}</h3><p class="small muted">${desc}</p></div><div class="ngbest">Best <b>${best}</b></div></div>`;}
+function campStreak(c){let n=0;const d=new Date();if(((c.camp[today()]||[]).length)<3)d.setDate(d.getDate()-1);for(;;){const k=VB.iso?VB.iso(d):d.toISOString().slice(0,10);if((c.camp[k]||[]).length>=3){n++;d.setDate(d.getDate()-1);}else break;}return n;}
+function records(c){const A=VB.crowArcade;if(!A)return "";const ms=Object.keys(A.MODES);
+  return `<div class="card"><div class="kicker">Arcade records</div><table class="arec"><thead><tr><th>Game</th>${ms.map(m=>`<th>${A.MODES[m].label}</th>`).join("")}<th>Best</th></tr></thead><tbody>${ARCADE.map(id=>{const G=A.games[id];if(!G)return "";const b=(c.bestM&&c.bestM[id])||{};
+    return `<tr><td>${esc(G.title)}</td>${ms.map(m=>`<td>${b[m]||"–"}</td>`).join("")}<td><b>${G.bestOf(c)||0}</b></td></tr>`;}).join("")}</tbody></table>
+    <p class="small muted">Daily challenges done: <b>${c.dailyN}</b>. Today's: ${(()=>{const d=A.daily();return d?`${esc(d.title)}, ${esc(d.text)}${c.daily[d.day]?" ✓":""}`:"none";})()}.</p></div>`;}
 function radar(c){const v=skills(c),n=v.length,R=110,cx=150,cy=140,pt=(i,r)=>[cx+Math.sin(i/n*Math.PI*2)*r,cy-Math.cos(i/n*Math.PI*2)*r];
   const ring=k=>v.map((_,i)=>pt(i,R*k).join(",")).join(" ");
   return `<svg class="radar" viewBox="0 0 300 290" role="img" aria-label="Skill chart: ${SKILLS.map(([l],i)=>l+" "+v[i]).join(", ")}">
@@ -375,27 +513,21 @@ function radar(c){const v=skills(c),n=v.length,R=110,cx=150,cy=140,pt=(i,r)=>[cx
     <polygon points="${v.map((s,i)=>pt(i,R*Math.max(.04,s/100)).join(",")).join(" ")}" fill="${rgbA(.35)}" stroke="var(--cra)" stroke-width="2.5"/>
     ${SKILLS.map(([l],i)=>{const [x,y]=pt(i,R+22);return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${esc(l)} <tspan>${v[i]}</tspan></text>`;}).join("")}</svg>`;}
 function panel(){const P=$("#nPanel");if(!P)return;stopGame();$$("[data-nt]").forEach(b=>b.setAttribute("aria-selected",b.dataset.nt===tab));const c=C(),p=ME();
-  if(tab==="dig"){P.innerHTML=`<div class="ngame">${gameHead("dig","Dig Defence",c.best.dig,"Spikes are coming. Tap the ring on the floor before the ball lands. Wait until the last moment for a <b>PERFECT</b> dig. Tips land short and slow. Every 10 in a row is a Rolling Thunder bonus. On a keyboard, press the zone number (1 to 6).")}
-      <div class="gstage"><canvas id="digCv" width="900" height="560" aria-label="Dig Defence game. Tap the rings, or press zone numbers 1 to 6."></canvas><div class="gover" id="digOver"><b>Dig Defence</b><span>3 lives. Don't let it touch the floor.</span><button class="btn primary" type="button" id="digGo">Start</button></div></div></div>`;
-    game=digGame($("#digCv"));}
-  else if(tab==="quick"){P.innerHTML=`<div class="ngame">${gameHead("quick","Freak Quick",c.best.quick,"The setter sends it fast. Tap (or press space) right as the ball reaches your hand to hit a kill. The window gets smaller as your streak grows. Three misses and it's over.")}
-      <label class="small eyes"><input type="checkbox" id="qkEyes"> Eyes closed: the ball disappears during the set. Trust your setter (double feathers).</label>
-      <div class="gstage"><canvas id="qkCv" width="900" height="420" aria-label="Freak Quick game. Tap or press space to swing."></canvas><div class="gover" id="qkOver"><b>Freak Quick</b><span>Time your swing to the set.</span><button class="btn primary" type="button" id="qkGo">Start</button></div></div></div>`;
-    game=quickGame($("#qkCv"));}
-  else if(tab==="serve"){P.innerHTML=`<div class="ngame">${gameHead("serve","Jump Serve",c.best.serve,"A target zone lights up. Tap once to lock your <b>power</b> (inside the band, or it hits the net or flies long; less power lands shorter), then tap again to lock your <b>aim</b>. Hitting the target is an ace: 3 points. In the court: 1 point. Out or net: you lose a life. Space works too.")}
-      <div class="gstage"><canvas id="svCv" width="900" height="560" aria-label="Jump Serve game. Tap or press space twice: power, then aim."></canvas><div class="gover" id="svOver"><b>Jump Serve</b><span>Find the zone. Ace it.</span><button class="btn primary" type="button" id="svGo">Start</button></div></div></div>`;
-    game=serveGame($("#svCv"));}
-  else if(tab==="iq"){quizStart(P);}
+  if(ARCADE.includes(tab)){game=VB.crowArcade?VB.crowArcade.mount(P,tab,KIT):null;}
+  else if(tab==="card"){playerCard(P);}
+  else if(tab==="iq"){quizMenu(P);}
   else if(tab==="camp"){const qs=campToday(),done=c.camp[today()]||[],days=[];for(let i=13;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=VB.iso?VB.iso(d):d.toISOString().slice(0,10);days.push([k,(c.camp[k]||[]).length]);}
     P.innerHTML=`<div class="ncamp"><div class="ngh"><div><div class="kicker">Today's camp · ${p.focus==="att"?"attack":p.focus==="mix"?"all-round":"defence"} focus</div><h3>Three jobs for ${esc(p.job||"a crow")}</h3><p class="small muted">New jobs every day: two for your focus, one for everyone. Tick each one when you've done it: 15 feathers each, and a 20 feather bonus for all three. Dives and sprawls go on a mat or grass, never a hard floor.</p></div></div>
       <div class="camprow">${qs.map(q=>{const d=done.includes(q.id);return `<button type="button" class="cq ${d?"done":""}" data-cq="${q.id}" aria-pressed="${d}"><span class="cqk">${d?"Done":"To do"}</span><b>${esc(q.t)}</b><span>${esc(q.d)}</span><small>${esc(q.x)}</small></button>`;}).join("")}</div>
+      ${(()=>{const ch=chalToday();if(!ch)return "";const dn=!!(c.chal[today()]);return `<div class="cchal ${dn?"done":""}"><div><span class="kicker">Challenge drill · optional</span><b>${esc(ch.t)}</b><span>${esc(ch.d)}</span></div><button type="button" class="btn sm ${dn?"":"primary"}" data-cchal ${dn?"disabled":""}>${dn?"Done · +30":"I did it · +30"}</button></div>`;})()}
+      <p class="small muted">Camp streak: <b>${campStreak(c)}</b> day${campStreak(c)===1?"":"s"} in a row · ${Object.keys(c.chal).length} challenge drill${Object.keys(c.chal).length===1?"":"s"} done.</p>
       <div class="cweek"><span class="stat">Last 14 days</span><div>${days.map(([k,n])=>`<i class="${n>=3?"full":n?"part":""}" title="${k}: ${n}/3"><span>${["S","M","T","W","T","F","S"][new Date(k+"T12:00").getDay()]}</span></i>`).join("")}</div></div></div>`;}
   else if(tab==="season"){const wk=weekKey(),g=c.goal.week===wk?c.goal:{};
     P.innerHTML=`<div class="nseason"><div class="stack" style="gap:16px"><div class="card"><div class="kicker">Skill chart</div><p class="small muted">Built from your best scores: Receive (Dig Defence), Attack (Freak Quick), Serve (Jump Serve), IQ (the quiz), Grit (camp days) and Energy (games played and big calls).</p>${radar(c)}</div>
-      <div class="card"><div class="kicker">This week's goal</div><p class="small muted">Write one thing you'll do this week. Tick it when it's done: 30 feathers.</p>
+      ${records(c)}<div class="card"><div class="kicker">This week's goal</div><p class="small muted">Write one thing you'll do this week. Tick it when it's done: 30 feathers.</p>
         ${g.done?`<p class="goaldone">✓ ${esc(g.text)}</p>`:`<form class="row" id="nGoalForm"><input class="in" id="nGoalIn" maxlength="120" placeholder="e.g. 100 wall passes in a row" value="${esc(g.text||"")}" aria-label="This week's goal" style="flex:1;min-width:0"><button class="btn sm" type="submit">Save</button></form>${g.text?`<div class="row"><button class="btn primary sm" type="button" id="nGoalDone">I did it</button></div>`:""}`}</div></div>
-      <div class="road"><div class="kicker">Season road</div><h3>${c.road.length>=ROAD.length?"Champions!":"Win your way to Nationals"}</h3><ol>${ROAD.map((m,i)=>{const st=i<c.road.length?"won":i===c.road.length?"next":"later";
-        return `<li class="rm ${st}"><span class="rdot">${st==="won"?"✓":i+1}</span><div><small>${esc(m.kind)}</small><b>vs ${esc(m.opp)}</b><span>${st==="won"?"Won · +"+m.f+" feathers":esc(m.need)}</span></div></li>`;}).join("")}</ol></div></div>`;}
+      <div class="road"><div class="kicker">Season road</div><h3>${c.road.length>=ROAD.length?"World champions!":c.road.length>=10?"The World Club Championship":"Win your way to Nationals"}</h3><ol>${ROAD.map((m,i)=>{const s2=i<c.road.length?"won":i===c.road.length?"next":"later";
+        return `${i===10?`<li class="rsep"><span>Season 2 · World Club Championship${c.road.length<10?" · unlocks after Nationals":""}</span></li>`:""}<li class="rm ${s2} ${i>=10&&c.road.length<10?"locked":""}"><span class="rdot">${s2==="won"?"✓":i+1}</span><div><small>${esc(m.kind)}</small><b>vs ${esc(m.opp)}</b><span>${s2==="won"?"Won · +"+m.f+" feathers":esc(m.need)}</span></div></li>`;}).join("")}</ol></div></div>`;}
   else if(tab==="badges"){P.innerHTML=`<div class="nbadges">${BADGES.map(b=>{const got=c.badges.includes(b.id),h=Math.min(b.have(c),b.n),rr=b.r(p),rw=rr.length?rr.map(([k,id])=>rewardName(k,id)).join(" · "):"+"+b.f+" feathers";return `<div class="nb ${got?"got":""}">${crowSvg("nbc")}<b>${esc(b.name)}</b><span>${esc(b.desc)}</span>
         ${got?`<small class="nbr">${esc(rw)}</small>`:`<span class="lbar"><i style="width:${Math.round(h/b.n*100)}%"></i></span><small>${h} / ${b.n} · ${esc(rw)}</small>`}</div>`;}).join("")}</div>
       <div class="nshop"><div class="ngh"><div><div class="kicker">Feather shop</div><h3>Spend your feathers</h3><p class="small muted">You have <b>${c.feathers}</b> feathers (${c.earned} earned in total). Earn more in the games, the quiz, the camp, the season and with badges.</p></div></div>
@@ -417,6 +549,7 @@ document.addEventListener("click",e=>{if(!e.target.closest("#v-nest"))return;con
   if(b.id==="rtBtn"){rollingThunder();return;}
   if(b.id==="nMute"){g.mute=!g.mute;save();b.setAttribute("aria-pressed",g.mute);b.textContent=g.mute?"Sound off":"Sound on";return;}
   if(d.cq){const k=today(),arr=c.camp[k]=Array.isArray(c.camp[k])?c.camp[k]:[];if(arr.includes(d.cq))return;arr.push(d.cq);award(15);sfx("coin");if(arr.length===3){award(20);sfx("unlock");}save();checkBadges();refreshStats();panel();return;}
+  if(b.hasAttribute("data-cchal")){const k=today();if(c.chal[k])return;c.chal[k]=(chalToday()||{}).id||1;award(30);sfx("unlock");save();checkBadges();refreshStats();panel();return;}
   if(d.buy){const s=SHOP.find(x=>x.id===d.buy);if(!s||c.owned[s.r[0]].includes(s.r[1])||c.feathers<s.cost)return;c.feathers-=s.cost;c.bought.push(s.id);give(c,s.r);save();sfx("unlock");VB.ui&&VB.ui.toast(`${s.name} is yours.`);refreshStats();panel();return;}
   if(d.skinSet){g.skin=d.skinSet==="crow";save();applySkin();panel();renderCodeCard();return;}
   if(d.kit){setLook({kit:d.kit});panel();return;}
@@ -440,210 +573,51 @@ function drawBgFx(dt){const cv=$(".nfx");if(!cv)return;const r=cv.getBoundingCli
   const W=Math.round(r.width),H=Math.round(r.height);if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}const g=cv.getContext("2d");g.clearRect(0,0,W,H);
   bgFx.f.forEach(f=>{if(!reduced()){f.y+=f.v*dt;f.r+=dt*f.s;f.w+=dt;}if(f.y>1.08){f.y=-.08;f.x=Math.random();}featherAt(g,(f.x+Math.sin(f.w)*.015)*W,f.y*H,22*f.s,Math.sin(f.r)*.9,f.o?rgbA(.55):"rgba(255,255,255,.08)");});}
 
-/* ---------- Dig Defence ---------- */
-function digGame(cv){const g=cv.getContext("2d"),W=cv.width,H=cv.height,pt=fitCanvas(cv),c=C();
-  const K={ty:185,by:548,tl:215,tr:685,bl:40,br:860};
-  const cp=(u,v)=>{const y=K.ty+(K.by-K.ty)*v,l=K.tl+(K.bl-K.tl)*v,r=K.tr+(K.br-K.tr)*v;return [l+(r-l)*u,y,.55+.75*v];};
-  const ZONE={4:[0,0],3:[1,0],2:[2,0],5:[0,1],6:[1,1],1:[2,1]};
-  let S=null;
-  function reset(){S={on:true,score:0,combo:0,lives:3,balls:[],fx:[],pops:[],next:.8,t:0,shake:0,digs:0,over:false};}
-  function spawn(){const tip=S.score>=8&&Math.random()<.22,zone=tip?[4,3,2][Math.floor(Math.random()*3)]:[1,2,3,4,5,6][Math.floor(Math.random()*6)],[col,row]=ZONE[zone];
-    const u=(col+.18+Math.random()*.64)/3,v=row===0?(.06+Math.random()*.25):(.38+Math.random()*.55),L=cp(u,v),T=Math.max(.62,1.35-S.score*.011)*(tip?1.55:1);
-    S.balls.push({zone,u,v,L,x0:K.tl+60+Math.random()*(K.tr-K.tl-120),T,t:-.35,tip,dug:false,dt:0});}
-  function tap(x,y,zone){if(!S||!S.on)return;let best=null;
-    S.balls.forEach(b=>{if(b.dug||b.t<0)return;const p=b.t/b.T,r=ringR(b,p)+16,dx=(x-b.L[0])/r,dy=(y-b.L[1])/(r*.5);const hit=zone!=null?b.zone===zone:dx*dx+dy*dy<=1.3;if(hit&&(!best||b.T-b.t<best.T-best.t))best=b;});
-    if(!best){if(zone==null&&S.combo){S.combo=0;S.pops.push({t:0,x,y,txt:"Whiff",col:"#bbb"});}return;}
-    const p=best.t/best.T,perfect=p>=.7;best.dug=true;best.dt=0;best.from=ballPos(best,p);S.digs++;S.combo++;
-    let pts=perfect?3:1;if(S.combo%10===0){pts+=5;S.pops.push({t:0,x:W/2,y:H*.42,txt:"ROLLING THUNDER!",col:ORANGE,big:true});sfx("thunder");S.shake=.35;}
-    S.score+=pts;S.pops.push({t:0,x:best.from[0],y:best.from[1]-30,txt:perfect?"PERFECT +3":"DIG +1",col:perfect?ORANGE:"#fff"});sfx(perfect?"perfect":"dig");
-    for(let i=0;i<14;i++)S.fx.push({x:best.L[0],y:best.L[1],vx:(Math.random()-.5)*360,vy:-Math.random()*320,t:0,col:i%3?ORANGE:"#fff"});}
-  const ringR=(b,p)=>(78-44*p)*b.L[2]*(b.tip?.8:1);
-  const ballPos=(b,p)=>{const sx=b.x0,sy=K.ty-130,e=b.tip?p:Math.pow(p,1.15),x=sx+(b.L[0]-sx)*e,y=sy+(b.L[1]-sy)*e-(b.tip?Math.sin(Math.PI*p)*120:Math.sin(Math.PI*p)*18),s=.7+(b.L[2]-.7)*p;return [x,y,s];};
-  function end(){S.on=false;S.over=true;const fe=Math.floor(S.score/2);award(fe);c.games++;c.digs+=S.digs;const nb=S.score>c.best.dig;if(nb)c.best.dig=S.score;save();
-    const ov=$("#digOver");if(ov){ov.hidden=false;ov.innerHTML=`<b>${S.score} points</b><span>${nb?"New best! ":""}${S.digs} digs · +${fe} feathers</span><button class="btn primary" type="button" id="digGo">Play again</button>`;}
-    checkBadges();refreshStats();const nbEl=$(".ngbest b");if(nbEl)nbEl.textContent=c.best.dig;}
-  function court(){g.fillStyle="#0b0a0c";g.fillRect(0,0,W,H);const fl=g.createLinearGradient(0,K.ty,0,K.by);fl.addColorStop(0,"#7a3a12");fl.addColorStop(1,"#c8631f");
-    g.fillStyle=fl;g.beginPath();g.moveTo(K.tl-40,K.ty);g.lineTo(K.tr+40,K.ty);g.lineTo(K.br+60,H);g.lineTo(K.bl-60,H);g.closePath();g.fill();
-    g.globalAlpha=.12;g.strokeStyle="#000";for(let i=1;i<14;i++){const a=cp(i/14,0),b=cp(i/14,1.05);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();}g.globalAlpha=1;
-    g.strokeStyle="#f4efe6";g.lineWidth=4;g.beginPath();const a=cp(0,0),b=cp(1,0),d=cp(1,1),e=cp(0,1);g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.lineTo(d[0],d[1]);g.lineTo(e[0],e[1]);g.closePath();g.stroke();
-    const m1=cp(0,.333),m2=cp(1,.333);g.lineWidth=3;g.beginPath();g.moveTo(m1[0],m1[1]);g.lineTo(m2[0],m2[1]);g.stroke();
-    g.font="800 28px 'Barlow Condensed',sans-serif";g.textAlign="center";g.textBaseline="middle";g.fillStyle="rgba(255,255,255,.14)";Object.entries(ZONE).forEach(([z,[cc,r]])=>{const p=cp((cc+.5)/3,r===0?.17:.66);g.fillText(z,p[0],p[1]);});
-    /* net */
-    g.fillStyle="rgba(255,255,255,.07)";g.fillRect(K.tl-40,K.ty-95,K.tr-K.tl+80,95);g.strokeStyle="rgba(255,255,255,.22)";g.lineWidth=1;for(let x=K.tl-40;x<=K.tr+40;x+=12){g.beginPath();g.moveTo(x,K.ty-95);g.lineTo(x,K.ty);g.stroke();}for(let y=K.ty-95;y<=K.ty;y+=12){g.beginPath();g.moveTo(K.tl-40,y);g.lineTo(K.tr+40,y);g.stroke();}
-    g.fillStyle="#f4efe6";g.fillRect(K.tl-40,K.ty-100,K.tr-K.tl+80,9);g.fillStyle="#2a2730";g.fillRect(K.tl-52,K.ty-110,10,130);g.fillRect(K.tr+42,K.ty-110,10,130);
-    for(let k=0;k<6;k++){g.fillStyle=k%2?"#f4efe6":ORANGE;g.fillRect(K.tl-40,K.ty-150+k*9,4,9);g.fillRect(K.tr+36,K.ty-150+k*9,4,9);}}
-  function hitter(x,t){const up=Math.max(0,Math.sin(Math.min(1,(t+.35)/.5)*Math.PI))*24;g.save();g.translate(x,K.ty-104-up);g.fillStyle="#141217";
-    g.beginPath();g.arc(0,-34,11,0,7);g.fill();g.beginPath();g.moveTo(-14,-22);g.lineTo(14,-22);g.lineTo(10,12);g.lineTo(-10,12);g.closePath();g.fill();g.lineWidth=7;g.strokeStyle="#141217";g.lineCap="round";
-    const sw=t<0?-1.9:-.2;g.beginPath();g.moveTo(10,-18);g.lineTo(10+Math.cos(sw)*30,-18+Math.sin(sw)*30);g.stroke();g.beginPath();g.moveTo(-10,-18);g.lineTo(-24,0);g.stroke();g.restore();}
-  function ball(x,y,s,a){const r=17*s;g.save();g.globalAlpha=a==null?1:a;g.fillStyle="#f6f3ea";g.beginPath();g.arc(x,y,r,0,7);g.fill();g.strokeStyle=ORANGE;g.lineWidth=Math.max(1.5,3*s);
-    g.beginPath();g.arc(x,y,r*.95,-.6,1.6);g.stroke();g.strokeStyle="#141217";g.beginPath();g.arc(x,y,r*.95,2,3.9);g.stroke();g.beginPath();g.moveTo(x-r*.9,y-r*.2);g.quadraticCurveTo(x,y+r*.3,x+r*.9,y-r*.2);g.stroke();g.restore();}
-  function draw(){g.save();if(S&&S.shake>0&&!reduced()){g.translate((Math.random()-.5)*14*S.shake/.35,(Math.random()-.5)*14*S.shake/.35);}court();
-    if(S){S.balls.forEach(b=>{if(b.dug){const k=Math.min(1,b.dt/.55),x=b.from[0]+(W/2-b.from[0])*k,y=b.from[1]+(60-b.from[1])*k-Math.sin(Math.PI*k)*120;ball(x,y,b.from[2]*(1-.5*k),1-k*.6);return;}
-        if(b.t<0){hitter(b.x0,b.t);return;}const p=b.t/b.T,r=ringR(b,p);if(p<.4)hitter(b.x0,b.t);
-        g.strokeStyle=p>=.7?ORANGE:"rgba(255,255,255,.85)";g.lineWidth=p>=.7?5:3;g.beginPath();g.ellipse(b.L[0],b.L[1],r,r*.5,0,0,7);g.stroke();g.fillStyle=p>=.7?"rgba(255,122,26,.18)":"rgba(255,255,255,.08)";g.fill();
-        g.fillStyle="rgba(0,0,0,.35)";g.beginPath();g.ellipse(b.L[0],b.L[1],12*b.L[2]*p+4,5*b.L[2]*p+2,0,0,7);g.fill();if(b.tip){g.fillStyle=ORANGE;g.font="800 20px 'Barlow Condensed',sans-serif";g.fillText("TIP!",b.L[0],b.L[1]-r*.5-14);}
-        const q=ballPos(b,p);ball(q[0],q[1],q[2]);});
-      S.fx.forEach(f=>{g.globalAlpha=Math.max(0,1-f.t/.6);g.fillStyle=f.col;g.fillRect(f.x,f.y,5,5);});g.globalAlpha=1;
-      S.pops.forEach(p=>{g.globalAlpha=Math.max(0,1-p.t/(p.big?1.2:.8));g.fillStyle=p.col;g.font=`italic 800 ${p.big?64:30}px 'Barlow Condensed',sans-serif`;g.textAlign="center";g.fillText(p.txt,p.x,p.y-p.t*40);});g.globalAlpha=1;
-      g.textAlign="left";g.fillStyle="#fff";g.font="800 44px 'Barlow Condensed',sans-serif";g.fillText(S.score,24,48);g.font="600 16px 'Barlow',sans-serif";g.fillStyle="rgba(255,255,255,.7)";g.fillText("POINTS",26,74);
-      if(S.combo>1){g.fillStyle=ORANGE;g.font="italic 800 30px 'Barlow Condensed',sans-serif";g.fillText(S.combo+" IN A ROW",24,108);}
-      for(let i=0;i<3;i++){g.globalAlpha=i<S.lives?1:.2;ball(W-36-i*40,40,1.25);}g.globalAlpha=1;}
-    g.restore();}
-  function update(dt){if(!S){draw();return;}if(S.on){S.t+=dt;S.next-=dt;if(S.next<=0){spawn();if(S.score>=40&&Math.random()<.25)spawn();S.next=Math.max(.55,1.5-S.score*.015);}
-      S.balls.forEach(b=>{if(b.dug){b.dt+=dt;return;}b.t+=dt;if(b.t>=b.T){b.gone=true;S.lives--;S.combo=0;S.shake=.25;sfx("drop");S.pops.push({t:0,x:b.L[0],y:b.L[1]-20,txt:"DROP!",col:"#ff4d4d"});}});
-      S.balls=S.balls.filter(b=>!b.gone&&!(b.dug&&b.dt>.55));if(S.lives<=0)end();}
-    S.shake=Math.max(0,S.shake-dt);S.fx.forEach(f=>{f.t+=dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=700*dt;});S.fx=S.fx.filter(f=>f.t<.6);S.pops.forEach(p=>p.t+=dt);S.pops=S.pops.filter(p=>p.t<1.2);draw();}
-  const down=e=>{if(!S||!S.on)return;e.preventDefault();const [x,y]=pt(e);tap(x,y);};
-  const key=e=>{if(!S||!S.on){if((e.key===" "||e.key==="Enter")&&document.activeElement===cv){e.preventDefault();go();}return;}if(/^[1-6]$/.test(e.key)){e.preventDefault();tap(0,0,+e.key);}};
-  function go(){reset();const ov=$("#digOver");if(ov)ov.hidden=true;cv.focus({preventScroll:true});sfx("tick");}
-  cv.tabIndex=0;cv.addEventListener("pointerdown",down);window.addEventListener("keydown",key);
-  const goBtn=e=>{if(e.target.id==="digGo")go();};document.addEventListener("click",goBtn);draw();
-  return {update,stop(){window.removeEventListener("keydown",key);document.removeEventListener("click",goBtn);if(S&&S.on){S.on=false;}}};}
+/* the arcade games themselves are in crows-games.js, on the engine in crows-arcade.js */
 
-/* ---------- Freak Quick ---------- */
-function quickGame(cv){const g=cv.getContext("2d"),W=cv.width,H=cv.height,c=C();
-  const FLOOR=380,NETX=720,NETTOP=200,SET=[540,262],HIT=[652,150];
-  let S=null;
-  function reset(){S={on:true,kills:0,streak:0,best:0,lives:3,phase:"pass",t:0,eyes:!!($("#qkEyes")||{}).checked,pops:[],fx:[],shake:0,swing:-1};newRally();}
-  function newRally(){const r=Math.random(),type=r<.55?"quick":r<.8?"high":"slide";S.type=type;S.D=type==="quick"?.36+Math.random()*.12:type==="high"?.85+Math.random()*.2:.55+Math.random()*.1;S.phase="pass";S.t=0;S.swing=-1;S.res=null;S.w=Math.max(.06,.17-S.streak*.009);}
-  const lerp=(a,b,k)=>a+(b-a)*k;
-  function setPos(s){const apex=S.type==="high"?40:S.type==="slide"?115:120;if(s<=1){const x=lerp(SET[0],HIT[0],s),y=(1-s)*(1-s)*SET[1]+2*(1-s)*s*apex+s*s*HIT[1];return [x,y];}
-    const k=s-1;return [HIT[0]+k*90,HIT[1]+k*k*260+k*40];}
-  function press(){if(!S||!S.on)return;if(S.phase==="pass"){miss("Too early!");return;}if(S.phase!=="set")return;const s=S.t/S.D,err=s-1;S.swing=0;
-    if(Math.abs(err)<=S.w){const perfect=Math.abs(err)<=S.w*.45;S.phase="kill";S.t=0;S.kills++;S.streak++;S.best=Math.max(S.best,S.streak);const fe=(perfect?3:1)*(S.eyes?2:1);award(fe);
-      S.pops.push({t:0,x:HIT[0]+40,y:HIT[1]-30,txt:perfect?"PERFECT KILL!":"KILL!",col:perfect?ORANGE:"#fff",big:perfect});sfx("kill");S.shake=.3;for(let i=0;i<18;i++)S.fx.push({x:HIT[0],y:HIT[1],vx:Math.random()*500,vy:(Math.random()-.3)*400,t:0});}
-    else miss(err<0?"Early!":"Late!");}
-  function miss(txt){S.phase="miss";S.t=0;S.lives--;S.streak=0;sfx("miss");S.pops.push({t:0,x:HIT[0],y:HIT[1]-40,txt,col:"#ff6b6b"});if(S.lives<=0)setTimeout(end,700);}
-  function end(){if(!S||!S.on)return;S.on=false;const nb=S.best>c.best.quick;if(nb)c.best.quick=S.best;c.games++;save();const ov=$("#qkOver");
-    if(ov){ov.hidden=false;ov.innerHTML=`<b>${S.kills} kills</b><span>${nb?"New best streak! ":""}Best streak ${S.best}</span><button class="btn primary" type="button" id="qkGo">Play again</button>`;}checkBadges();refreshStats();const be=$(".ngbest b");if(be)be.textContent=c.best.quick;}
-  function person(x,y,col,num,arm,crouch){g.save();g.translate(x,y);g.lineCap="round";g.strokeStyle="#141217";g.lineWidth=8;
-    g.beginPath();g.moveTo(-6,-40);g.lineTo(-12-crouch*6,-12);g.lineTo(-8,0);g.moveTo(6,-40);g.lineTo(10+crouch*6,-12);g.lineTo(8,0);g.stroke();
-    g.fillStyle=col;g.beginPath();g.moveTo(-14,-92);g.lineTo(14,-92);g.lineTo(11,-40);g.lineTo(-11,-40);g.closePath();g.fill();g.fillStyle="#141217";g.fillRect(-12,-44,24,8);
-    if(num){g.fillStyle=col===ORANGE?"#141217":ORANGE;g.font="800 18px 'Barlow Condensed',sans-serif";g.textAlign="center";g.fillText(num,0,-62);}
-    g.fillStyle="#e0ac87";g.beginPath();g.arc(0,-106,12,0,7);g.fill();g.fillStyle="#141217";g.beginPath();g.arc(0,-110,12,Math.PI,0);g.fill();
-    g.strokeStyle="#e0ac87";g.lineWidth=7;g.beginPath();g.moveTo(10,-86);g.lineTo(10+Math.cos(arm)*34,-86+Math.sin(arm)*34);g.stroke();g.beginPath();g.moveTo(-10,-86);g.lineTo(-26,-60);g.stroke();g.restore();}
-  function vball(x,y,a){g.save();g.globalAlpha=a==null?1:a;g.fillStyle="#f6f3ea";g.beginPath();g.arc(x,y,11,0,7);g.fill();g.strokeStyle=ORANGE;g.lineWidth=2.5;g.beginPath();g.arc(x,y,10,-.6,1.6);g.stroke();g.strokeStyle="#141217";g.beginPath();g.arc(x,y,10,2,3.9);g.stroke();g.restore();}
-  function draw(){g.save();if(S&&S.shake>0&&!reduced())g.translate((Math.random()-.5)*12,(Math.random()-.5)*12);
-    const sky=g.createLinearGradient(0,0,0,H);sky.addColorStop(0,"#0b0a0c");sky.addColorStop(1,"#1e1512");g.fillStyle=sky;g.fillRect(0,0,W,H);
-    const r=g.createRadialGradient(W*.6,0,0,W*.6,0,W*.6);r.addColorStop(0,"rgba(255,122,26,.25)");r.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=r;g.fillRect(0,0,W,H);
-    g.fillStyle="#b9581b";g.fillRect(0,FLOOR,W,H-FLOOR);g.fillStyle="#f4efe6";g.fillRect(0,FLOOR,W,3);g.fillRect(NETX-300,FLOOR,4,6);
-    g.fillStyle="#2a2730";g.fillRect(NETX-3,NETTOP-10,6,FLOOR-NETTOP+10);g.fillStyle="rgba(255,255,255,.12)";g.fillRect(NETX-5,NETTOP,10,90);g.fillStyle="#f4efe6";g.fillRect(NETX-6,NETTOP-4,12,8);
-    g.fillStyle="rgba(255,255,255,.55)";g.font="700 14px 'Barlow',sans-serif";g.textAlign="center";g.fillText("SETTER",SET[0]-8,FLOOR+22);g.fillText("YOU",400,FLOOR+22);
-    const s=S?S.t/(S.D||1):0;let hx=420,hy=FLOOR,arm=-2.2,cr=0;
-    if(S){if(S.phase==="pass"){const k=Math.min(1,S.t/.7);hx=lerp(400,470,k);cr=k*.6;}
-      else if(S.phase==="set"){const k=Math.min(1,s);hx=lerp(470,HIT[0]-14,Math.min(1,k*1.3));const air=S.type==="high"?Math.max(0,(k-.55)/.45):Math.min(1,k*1.6);hy=FLOOR-Math.sin(Math.min(1,air)*Math.PI*.5)*80;arm=-2.2+Math.min(1,air)*.6;}
-      else{hx=HIT[0]-14;const k=Math.min(1,S.t/.6);hy=FLOOR-80*(1-k*k);arm=S.swing>=0?-.6+Math.min(1,S.t*6)*1.2:-1.6;}
-      if(S.swing>=0&&S.phase==="set")arm=.4;}
-    person(SET[0]-8,FLOOR,"#141217","5",-1.7,0);person(hx,hy,ORANGE,"10",arm,cr);
-    if(S){let bp=null,vis=true;if(S.phase==="pass"){const k=Math.min(1,S.t/.7);bp=[lerp(60,SET[0],k),lerp(300,SET[1],k)-Math.sin(Math.PI*k)*170];}
-      else if(S.phase==="set"){bp=setPos(s);if(S.eyes&&s>.22&&s<1.05)vis=false;}
-      else if(S.phase==="kill"){const k=Math.min(1,S.t/.35);bp=[lerp(HIT[0]+4,860,k),lerp(HIT[1],FLOOR-10,k*k)];g.strokeStyle="rgba(255,122,26,.7)";g.lineWidth=8;g.beginPath();g.moveTo(HIT[0],HIT[1]);g.lineTo(bp[0],bp[1]);g.stroke();}
-      else if(S.phase==="miss")bp=setPos(Math.min(2.2,1+S.t*1.4));
-      if(bp&&vis)vball(bp[0],bp[1]);
-      if(S.phase==="set"&&!S.eyes){g.strokeStyle="rgba(255,122,26,.5)";g.setLineDash([6,6]);g.lineWidth=2;g.beginPath();g.arc(HIT[0],HIT[1],22,0,7);g.stroke();g.setLineDash([]);}
-      S.fx.forEach(f=>{g.globalAlpha=Math.max(0,1-f.t/.5);g.fillStyle=ORANGE;g.fillRect(f.x,f.y,5,5);});g.globalAlpha=1;
-      S.pops.forEach(p=>{g.globalAlpha=Math.max(0,1-p.t);g.fillStyle=p.col;g.font=`italic 800 ${p.big?46:32}px 'Barlow Condensed',sans-serif`;g.textAlign="center";g.fillText(p.txt,p.x,p.y-p.t*30);});g.globalAlpha=1;
-      g.textAlign="left";g.fillStyle="#fff";g.font="800 40px 'Barlow Condensed',sans-serif";g.fillText(S.kills,22,46);g.font="600 14px 'Barlow',sans-serif";g.fillStyle="rgba(255,255,255,.7)";g.fillText("KILLS",24,66);
-      g.fillStyle=ORANGE;g.font="italic 800 26px 'Barlow Condensed',sans-serif";if(S.streak>1)g.fillText("STREAK "+S.streak,22,98);
-      g.font="700 15px 'Barlow',sans-serif";g.fillStyle="rgba(255,255,255,.75)";g.textAlign="right";g.fillText((S.type==="quick"?"QUICK SET":S.type==="high"?"HIGH SET":"SLIDE SET")+(S.eyes?" · EYES CLOSED":""),W-20,30);
-      for(let i=0;i<3;i++)vball(W-30-i*30,56,i<S.lives?1:.2);}
-    g.restore();}
-  function update(dt){if(S){if(S.on||S.phase==="miss"||S.phase==="kill"){S.t+=dt;
-      if(S.phase==="pass"&&S.t>=.7){S.phase="set";S.t=0;sfx("tick");}
-      else if(S.phase==="set"&&S.t/S.D>1+S.w+.15)miss("Missed it!");
-      else if((S.phase==="kill"&&S.t>.9)||(S.phase==="miss"&&S.t>.9&&S.on))newRally();}
-      S.shake=Math.max(0,S.shake-dt);S.fx.forEach(f=>{f.t+=dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=600*dt;});S.fx=S.fx.filter(f=>f.t<.5);S.pops.forEach(p=>p.t+=dt);S.pops=S.pops.filter(p=>p.t<1);}
-    draw();}
-  const down=e=>{if(!S||!S.on)return;e.preventDefault();press();};
-  const key=e=>{if(!isNest())return;if(e.key===" "||e.key==="Enter"){if(S&&S.on){e.preventDefault();press();}else if(document.activeElement===cv){e.preventDefault();go();}}};
-  function go(){reset();const ov=$("#qkOver");if(ov)ov.hidden=true;cv.focus({preventScroll:true});}
-  cv.tabIndex=0;cv.addEventListener("pointerdown",down);window.addEventListener("keydown",key);
-  const goBtn=e=>{if(e.target.id==="qkGo")go();};document.addEventListener("click",goBtn);draw();
-  return {update,stop(){window.removeEventListener("keydown",key);document.removeEventListener("click",goBtn);if(S)S.on=false;}};}
-
-/* ---------- Jump Serve ---------- */
-function serveGame(cv){const g=cv.getContext("2d"),W=cv.width,H=cv.height,c=C();
-  /* the far court seen from behind the server: v=0 at the net, v=1 at the far end line */
-  const NETY=300,cp=(u,v)=>{const y=NETY-205*v,hw=280-130*v;return [450+(u-.5)*2*hw,y,1-.55*v];};
-  const ZONE={2:[0,0],3:[1,0],4:[2,0],1:[0,1],6:[1,1],5:[2,1]};/* the other team's zones as you look at them */
-  let S=null;
-  function reset(){S={on:true,score:0,aces:0,lives:3,streak:0,phase:"power",t:0,pw:0,pdir:1,aim:0,adir:1,target:0,ball:null,pops:[],fx:[],shake:0};newServe();}
-  function newServe(){S.phase="power";S.t=0;S.pw=0;S.pdir=1;S.aim=Math.random();S.adir=Math.random()<.5?1:-1;S.ball=null;S.target=[1,2,3,4,5,6][Math.floor(Math.random()*6)];
-    const w=Math.max(.14,.26-S.score*.004);S.lo=.6-w/2+(Math.random()-.5)*.1;S.hi=S.lo+w;}
-  const zoneOf=(u,v)=>{const col=Math.min(2,Math.floor(u*3)),row=v<1/3?0:1;return +Object.keys(ZONE).find(z=>ZONE[z][0]===col&&ZONE[z][1]===row);};
-  function press(){if(!S||!S.on)return;if(S.phase==="power"){S.lock=S.pw;S.phase="aim";sfx("tick");return;}
-    if(S.phase!=="aim")return;const u=S.aim*1.2-.1,p=S.lock;let res,v;
-    if(p<S.lo){res="net";v=-.05;}else if(p>S.hi){res="long";v=1.18;}else{v=.04+(p-S.lo)/(S.hi-S.lo)*.94;res=u<0||u>1?"wide":"in";}
-    S.ball={u:Math.max(-.15,Math.min(1.15,u)),v,res,t:0};S.phase="fly";sfx("whoosh");}
-  function land(){const b=S.ball;if(b.res==="in"){const z=zoneOf(b.u,b.v),ace=z===S.target;if(ace){S.score+=3;S.aces++;S.streak++;c.aces++;award(2);sfx("kill");S.shake=.3;
-        S.pops.push({t:0,x:cp(b.u,b.v)[0],y:cp(b.u,b.v)[1]-30,txt:S.streak>2?`ACE! ×${S.streak}`:"ACE!",col:ORANGE,big:true});const L=cp(b.u,b.v);for(let i=0;i<18;i++)S.fx.push({x:L[0],y:L[1],vx:(Math.random()-.5)*400,vy:-Math.random()*300,t:0});}
-      else{S.score+=1;S.streak=0;sfx("dig");S.pops.push({t:0,x:cp(b.u,b.v)[0],y:cp(b.u,b.v)[1]-30,txt:`In, zone ${z}`,col:"#fff"});}}
-    else{S.lives--;S.streak=0;sfx("miss");S.pops.push({t:0,x:450,y:b.res==="net"?NETY-60:120,txt:b.res==="net"?"Into the net!":b.res==="long"?"Long!":"Wide!",col:"#ff6b6b"});if(S.lives<=0){setTimeout(end,700);}}
-    S.phase="result";S.t=0;}
-  function end(){if(!S||!S.on)return;S.on=false;c.games++;const nb=S.score>c.best.serve;if(nb)c.best.serve=S.score;award(Math.floor(S.score/2));save();const ov=$("#svOver");
-    if(ov){ov.hidden=false;ov.innerHTML=`<b>${S.score} points</b><span>${nb?"New best! ":""}${S.aces} aces · +${Math.floor(S.score/2)+S.aces*2} feathers</span><button class="btn primary" type="button" id="svGo">Play again</button>`;}checkBadges();refreshStats();const be=$(".ngbest b");if(be)be.textContent=c.best.serve;}
-  function draw(){g.save();if(S&&S.shake>0&&!reduced())g.translate((Math.random()-.5)*12,(Math.random()-.5)*12);
-    g.fillStyle="#0b0a0c";g.fillRect(0,0,W,H);const r=g.createRadialGradient(450,40,0,450,40,500);r.addColorStop(0,rgbA(.22));r.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=r;g.fillRect(0,0,W,H);
-    /* floor */
-    g.fillStyle="#9c4a17";g.beginPath();const a=cp(-.25,1.15),b2=cp(1.25,1.15);g.moveTo(a[0],a[1]);g.lineTo(b2[0],b2[1]);g.lineTo(W+80,H);g.lineTo(-80,H);g.closePath();g.fill();
-    const fl=g.createLinearGradient(0,90,0,H);fl.addColorStop(0,"rgba(0,0,0,.4)");fl.addColorStop(1,"rgba(255,140,60,.15)");g.fillStyle=fl;g.fill();
-    /* target zone */
-    if(S){const [col,row]=ZONE[S.target],u0=col/3,u1=(col+1)/3,v0=row?1/3:0,v1=row?1:1/3,q=[cp(u0,v0),cp(u1,v0),cp(u1,v1),cp(u0,v1)];g.fillStyle=rgbA(.28+.12*Math.sin(performance.now()/180));g.beginPath();q.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();}
-    g.strokeStyle="#f4efe6";g.lineWidth=3;g.beginPath();[cp(0,0),cp(1,0),cp(1,1),cp(0,1)].forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.stroke();
-    const m1=cp(0,1/3),m2=cp(1,1/3);g.lineWidth=2;g.beginPath();g.moveTo(m1[0],m1[1]);g.lineTo(m2[0],m2[1]);g.stroke();
-    g.font="800 30px 'Barlow Condensed',sans-serif";g.textAlign="center";g.textBaseline="middle";Object.entries(ZONE).forEach(([z,[cc,rr]])=>{const p=cp((cc+.5)/3,rr?.66:.17);g.fillStyle=S&&+z===S.target?"#fff":"rgba(255,255,255,.18)";g.fillText(z,p[0],p[1]);});
-    /* net */
-    g.fillStyle="rgba(255,255,255,.07)";g.fillRect(130,NETY-80,640,80);g.strokeStyle="rgba(255,255,255,.2)";g.lineWidth=1;for(let x=130;x<=770;x+=12){g.beginPath();g.moveTo(x,NETY-80);g.lineTo(x,NETY);g.stroke();}for(let y=NETY-80;y<=NETY;y+=12){g.beginPath();g.moveTo(130,y);g.lineTo(770,y);g.stroke();}
-    g.fillStyle="#f4efe6";g.fillRect(130,NETY-84,640,8);g.fillStyle="#2a2730";g.fillRect(118,NETY-95,10,170);g.fillRect(772,NETY-95,10,170);
-    for(let k=0;k<6;k++){g.fillStyle=k%2?"#f4efe6":ORANGE;g.fillRect(170,NETY-130+k*8,4,8);g.fillRect(726,NETY-130+k*8,4,8);}
-    /* our end line and the server */
-    g.fillStyle="#f4efe6";g.fillRect(0,H-58,W,4);
-    if(S){const sx=450,sy=H-24,ph=S.phase;g.save();g.translate(sx,sy);g.fillStyle="#141217";g.beginPath();g.arc(0,-92,13,0,7);g.fill();g.fillStyle=ORANGE;g.fillRect(-16,-78,32,44);g.fillStyle="#141217";g.font="800 18px 'Barlow Condensed',sans-serif";g.fillText(ME().num||"4",0,-56);
-      g.strokeStyle="#141217";g.lineWidth=9;g.lineCap="round";g.beginPath();g.moveTo(-8,-34);g.lineTo(-12,0);g.moveTo(8,-34);g.lineTo(12,0);g.stroke();g.strokeStyle="#e0ac87";g.lineWidth=7;const sw=ph==="fly"||ph==="result"?-.4:-2.2;g.beginPath();g.moveTo(12,-72);g.lineTo(12+Math.cos(sw)*36,-72+Math.sin(sw)*36);g.stroke();g.restore();}
-    /* ball */
-    if(S&&S.ball){const b=S.ball,k=Math.min(1,b.t/.75),L=cp(b.u,b.v),x=450+(L[0]-450)*k,y=(H-150)+(L[1]-(H-150))*k-Math.sin(Math.PI*k)*(b.res==="net"?60:160),s=1.1-(1.1-L[2]*.7)*k;
-      g.fillStyle="rgba(0,0,0,.35)";g.beginPath();g.ellipse(450+(L[0]-450)*k,(H-60)+(L[1]-(H-60))*k,10*s,4*s,0,0,7);g.fill();
-      g.fillStyle="#f6f3ea";g.beginPath();g.arc(x,y,14*s,0,7);g.fill();g.strokeStyle=ORANGE;g.lineWidth=3*s;g.beginPath();g.arc(x,y,13*s,-.6,1.6);g.stroke();g.strokeStyle="#141217";g.beginPath();g.arc(x,y,13*s,2,3.9);g.stroke();}
-    else if(S&&S.on){g.fillStyle="#f6f3ea";g.beginPath();g.arc(470,H-150-Math.abs(Math.sin(performance.now()/300))*20,14,0,7);g.fill();}
-    /* meters */
-    if(S&&(S.phase==="power"||S.phase==="aim")){const bx=40,by=150,bh=300,bw=26;g.fillStyle="rgba(255,255,255,.12)";g.fillRect(bx,by,bw,bh);g.fillStyle=rgbA(.55);g.fillRect(bx,by+bh*(1-S.hi),bw,bh*(S.hi-S.lo));
-      const pv=S.phase==="power"?S.pw:S.lock;g.fillStyle="#fff";g.fillRect(bx-6,by+bh*(1-pv)-3,bw+12,6);g.fillStyle="rgba(255,255,255,.75)";g.font="700 14px 'Barlow',sans-serif";g.textAlign="center";g.fillText("POWER",bx+bw/2,by+bh+20);
-      if(S.phase==="aim"){const u=S.aim*1.2-.1,L=cp(u,.5);g.strokeStyle="#fff";g.lineWidth=3;g.setLineDash([8,8]);g.beginPath();g.moveTo(450,H-150);g.lineTo(L[0],L[1]);g.stroke();g.setLineDash([]);g.fillStyle="#fff";g.beginPath();g.arc(L[0],L[1],7,0,7);g.fill();}
-      g.fillStyle=ORANGE;g.font="italic 800 26px 'Barlow Condensed',sans-serif";g.textAlign="center";g.fillText(S.phase==="power"?"TAP TO LOCK POWER":"TAP TO LOCK AIM",450,H-100+0);}
-    if(S){S.fx.forEach(f=>{g.globalAlpha=Math.max(0,1-f.t/.6);g.fillStyle=ORANGE;g.fillRect(f.x,f.y,5,5);});g.globalAlpha=1;
-      S.pops.forEach(p=>{g.globalAlpha=Math.max(0,1-p.t);g.fillStyle=p.col;g.font=`italic 800 ${p.big?52:32}px 'Barlow Condensed',sans-serif`;g.textAlign="center";g.fillText(p.txt,p.x,p.y-p.t*30);});g.globalAlpha=1;
-      g.textAlign="left";g.fillStyle="#fff";g.font="800 42px 'Barlow Condensed',sans-serif";g.fillText(S.score,24,48);g.font="600 15px 'Barlow',sans-serif";g.fillStyle="rgba(255,255,255,.7)";g.fillText("POINTS · "+S.aces+" ACES",26,72);
-      g.textAlign="right";g.fillStyle=ORANGE;g.font="italic 800 24px 'Barlow Condensed',sans-serif";g.fillText("TARGET: ZONE "+S.target,W-24,40);
-      for(let i=0;i<3;i++){g.globalAlpha=i<S.lives?1:.2;g.fillStyle="#f6f3ea";g.beginPath();g.arc(W-36-i*32,70,11,0,7);g.fill();}g.globalAlpha=1;}
-    g.restore();}
-  function update(dt){if(S){S.t+=dt;const sp=1.1+S.score*.02;
-      if(S.phase==="power"){S.pw+=S.pdir*dt*sp;if(S.pw>1){S.pw=1;S.pdir=-1;}if(S.pw<0){S.pw=0;S.pdir=1;}}
-      else if(S.phase==="aim"){S.aim+=S.adir*dt*(.7+S.score*.012);if(S.aim>1){S.aim=1;S.adir=-1;}if(S.aim<0){S.aim=0;S.adir=1;}}
-      else if(S.phase==="fly"){S.ball.t+=dt;if(S.ball.t>=.75)land();}
-      else if(S.phase==="result"&&S.t>.9&&S.on&&S.lives>0)newServe();
-      S.shake=Math.max(0,S.shake-dt);S.fx.forEach(f=>{f.t+=dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=600*dt;});S.fx=S.fx.filter(f=>f.t<.6);S.pops.forEach(p=>p.t+=dt);S.pops=S.pops.filter(p=>p.t<1);}
-    draw();}
-  const down=e=>{if(!S||!S.on)return;e.preventDefault();press();};
-  const key=e=>{if(!isNest())return;if(e.key===" "||e.key==="Enter"){if(S&&S.on){e.preventDefault();press();}else if(document.activeElement===cv){e.preventDefault();go();}}};
-  function go(){reset();const ov=$("#svOver");if(ov)ov.hidden=true;cv.focus({preventScroll:true});}
-  cv.tabIndex=0;cv.addEventListener("pointerdown",down);window.addEventListener("keydown",key);
-  const goBtn=e=>{if(e.target.id==="svGo")go();};document.addEventListener("click",goBtn);draw();
-  return {update,stop(){window.removeEventListener("keydown",key);document.removeEventListener("click",goBtn);if(S)S.on=false;}};}
-
-/* ---------- Volleyball IQ ---------- */
+/* ---------- Volleyball IQ: Classic (10 questions with explanations), Lightning (60 seconds), Expert (hard, three strikes) ---------- */
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function quizStart(P){const f=ME().focus,mine=shuffle(QUIZ.filter(q=>f==="mix"||q.f===f)).slice(0,4),rest=shuffle(QUIZ.filter(q=>!mine.includes(q))).slice(0,QN-mine.length);
-  quiz={qs:shuffle(mine.concat(rest)).map(q=>({...q,opts:shuffle(q.a.map((t,i)=>({t,ok:i===0})))})),i:0,right:0,picked:null};quizRender(P);}
-function quizRender(P){P=P||$("#nPanel");const c=C();if(!P||!quiz)return;
-  if(quiz.i>=quiz.qs.length){const fe=quiz.right*5;award(fe);c.games++;const nb=quiz.right>c.best.quiz;if(nb)c.best.quiz=quiz.right;save();checkBadges();refreshStats();
-    P.innerHTML=`<div class="nquiz done"><div class="kicker">Volleyball IQ</div><h3>${quiz.right} / ${quiz.qs.length}</h3><p>${quiz.right===quiz.qs.length?"Perfect. That's a Volleyball Brain.":quiz.right>=6?"Sharp. A couple more and you've got them all.":"Good start. Every round picks new questions."} +${fe} feathers${nb?" · new best":""}.</p><button class="btn primary" type="button" id="qzAgain">Play again</button></div>`;quiz=null;return;}
-  const q=quiz.qs[quiz.i];P.innerHTML=`<div class="nquiz"><div class="row" style="justify-content:space-between"><span class="kicker">Question ${quiz.i+1} of ${quiz.qs.length} · ${q.f==="att"?"attack":q.f==="def"?"defence":"the game"}</span><span class="stat">${quiz.right} right · best ${c.best.quiz}</span></div>
-    <div class="qbar"><i style="width:${quiz.i/quiz.qs.length*100}%"></i></div><h3>${esc(q.q)}</h3><div class="qopts">${q.opts.map((o,i)=>{const pk=quiz.picked;const cls=pk==null?"":o.ok?"ok":pk===i?"bad":"";return `<button type="button" class="qo ${cls}" data-qo="${i}" ${pk!=null?"disabled":""}>${esc(o.t)}</button>`;}).join("")}</div>
-    ${quiz.picked!=null?`<p class="qexp" role="status">${q.opts[quiz.picked].ok?"<b>Right!</b> ":"<b>Not quite.</b> "}${esc(q.e)}</p><button class="btn primary" type="button" id="qzNext">${quiz.i+1<quiz.qs.length?"Next question":"See my score"}</button>`:""}</div>`;}
+const prep=q=>({...q,opts:shuffle(q.a.map((t,i)=>({t,ok:i===0})))});
+const QMODES={classic:{label:"Classic",desc:`${QN} questions, about half on your focus, with the explanation after each one.`,best:c=>c.best.quiz,unit:`/ ${QN}`},
+  lightning:{label:"Lightning",desc:"60 seconds. Answer as many as you can. Streaks of 5 add 5 seconds, wrong answers cost 3.",best:c=>c.best.lightning,unit:"right"},
+  expert:{label:"Expert",desc:"Only medium and hard questions, hardest first. Keep going until your third mistake.",best:c=>c.best.expert,unit:"right"}};
+function quizMenu(P){stopQuiz();const c=C();P.innerHTML=`<div class="nquiz menu"><div class="kicker">Volleyball IQ</div><h3>Pick a mode</h3><p class="small muted">${QUIZ.length} questions on rules, tactics and technique, easy to hard.</p>
+  <div class="qmodes">${Object.entries(QMODES).map(([k,m])=>`<button type="button" class="qmode" data-qmode="${k}"><b>${m.label}</b><span>${esc(m.desc)}</span><small>Best: ${m.best(c)} ${esc(m.unit)}</small></button>`).join("")}</div></div>`;}
+function stopQuiz(){if(quiz&&quiz.timer)clearInterval(quiz.timer);quiz=null;}
+function quizStart(P,mode){stopQuiz();mode=mode||"classic";const f=ME().focus;let qs;
+  if(mode==="classic"){const mine=shuffle(QUIZ.filter(q=>f==="mix"||q.f===f)).slice(0,Math.ceil(QN/2)),rest=shuffle(QUIZ.filter(q=>!mine.includes(q))).slice(0,QN-mine.length);qs=shuffle(mine.concat(rest));}
+  else if(mode==="expert"){qs=shuffle(QUIZ.filter(q=>q.d>=3)).concat(shuffle(QUIZ.filter(q=>q.d===2)));}
+  else qs=shuffle(QUIZ);
+  quiz={mode,qs:qs.map(prep),i:0,right:0,picked:null,strikes:0,streak:0,best:0,left:60,t0:performance.now()};
+  if(mode==="lightning"){quiz.timer=setInterval(()=>{if(!quiz)return;quiz.left-=.1;const el=$("#qzClock");if(el){el.textContent=Math.max(0,quiz.left).toFixed(1);el.parentElement.style.setProperty("--k",Math.max(0,quiz.left/60));}if(quiz.left<=0){clearInterval(quiz.timer);quiz.timer=null;quiz.done=true;quizRender();}},100);}
+  game={stop:stopQuiz};quizRender(P);}
+function quizEnd(P){const c=C(),q=quiz,m=q.mode;let fe,nb=false;
+  if(m==="classic"){fe=q.right*5;if(q.right>c.best.quiz){c.best.quiz=q.right;nb=true;}}
+  else if(m==="lightning"){fe=q.right*3+q.best*2;if(q.right>c.best.lightning){c.best.lightning=q.right;nb=true;}}
+  else{fe=q.right*6;if(q.right>c.best.expert){c.best.expert=q.right;nb=true;}}
+  award(fe);c.games++;save();checkBadges();refreshStats();const msg=m==="classic"?(q.right===q.qs.length?"Perfect. That's a Volleyball Brain.":q.right>=QN-2?"Sharp. A couple more and you've got them all.":"Good start. Every round picks new questions."):
+    m==="lightning"?(q.right>=15?"Lightning fast.":"Speed comes with knowing the rules cold. Go again."):(q.right>=12?"A true rules expert.":"The hard ones are hard. Read the explanations and try again.");
+  P.innerHTML=`<div class="nquiz done"><div class="kicker">Volleyball IQ · ${QMODES[m].label}</div><h3>${q.right}${m==="classic"?" / "+q.qs.length:" right"}</h3><p>${msg} +${fe} feathers${nb?" · new best":""}.</p>
+    ${m==="lightning"?`<p class="small muted">Best streak ${q.best} · ${q.i} answered</p>`:""}${q.missed&&q.missed.length?`<details class="qreview"><summary>Review ${q.missed.length} you missed</summary><ul>${q.missed.map(x=>`<li><b>${esc(x.q)}</b><span>${esc(x.a[0])}. ${esc(x.e)}</span></li>`).join("")}</ul></details>`:""}
+    <div class="row"><button class="btn primary" type="button" data-qmode="${m}">Play again</button><button class="btn" type="button" id="qzMenu">Other modes</button></div></div>`;if(quiz.timer)clearInterval(quiz.timer);quiz=null;}
+function quizRender(P){P=P||$("#nPanel");const c=C();if(!P||!quiz)return;const m=quiz.mode;
+  if(quiz.done||quiz.i>=quiz.qs.length||(m==="expert"&&quiz.strikes>=3)||(m==="lightning"&&quiz.left<=0)){quizEnd(P);return;}
+  const q=quiz.qs[quiz.i],pk=quiz.picked,showExp=m!=="lightning";
+  const head=m==="classic"?`Question ${quiz.i+1} of ${quiz.qs.length}`:m==="expert"?`Question ${quiz.i+1} · ${"✕".repeat(quiz.strikes)}${"○".repeat(3-quiz.strikes)}`:`<span class="qclock" style="--k:${quiz.left/60}"><b id="qzClock">${quiz.left.toFixed(1)}</b>s</span> · streak ${quiz.streak}`;
+  P.innerHTML=`<div class="nquiz ${m}"><div class="row" style="justify-content:space-between"><span class="kicker">${head} · ${q.f==="att"?"attack":q.f==="def"?"defence":"the game"} · ${["","easy","medium","hard"][q.d]||""}</span><span class="stat">${quiz.right} right · best ${QMODES[m].best(c)}</span></div>
+    ${m==="classic"?`<div class="qbar"><i style="width:${quiz.i/quiz.qs.length*100}%"></i></div>`:""}<h3>${esc(q.q)}</h3><div class="qopts">${q.opts.map((o,i)=>{const cls=pk==null?"":o.ok?"ok":pk===i?"bad":"";return `<button type="button" class="qo ${cls}" data-qo="${i}" ${pk!=null?"disabled":""}><kbd>${i+1}</kbd>${esc(o.t)}</button>`;}).join("")}</div>
+    ${pk!=null&&showExp?`<p class="qexp" role="status">${q.opts[pk].ok?"<b>Right!</b> ":"<b>Not quite.</b> "}${esc(q.e)}</p><button class="btn primary" type="button" id="qzNext">${quiz.i+1<quiz.qs.length&&!(m==="expert"&&quiz.strikes>=3)?"Next question":"See my score"}</button>`:""}</div>`;}
+function quizPick(i){if(!quiz||quiz.picked!=null)return;const q=quiz.qs[quiz.i];if(!q||!q.opts[i])return;quiz.picked=i;const ok=q.opts[i].ok;
+  if(ok){quiz.right++;quiz.streak++;quiz.best=Math.max(quiz.best,quiz.streak);if(quiz.mode==="lightning"&&quiz.streak%5===0){quiz.left+=5;}}
+  else{quiz.streak=0;quiz.strikes++;(quiz.missed=quiz.missed||[]).push(q);if(quiz.mode==="lightning")quiz.left=Math.max(0,quiz.left-3);}
+  sfx(ok?"perfect":"miss");quizRender();
+  if(quiz&&quiz.mode==="lightning"){setTimeout(()=>{if(quiz&&quiz.picked!=null){quiz.i++;quiz.picked=null;quizRender();}},ok?320:700);}else{const n=$("#qzNext");n&&n.focus();}}
 document.addEventListener("click",e=>{if(!e.target.closest("#nPanel"))return;const b=e.target.closest("button");if(!b)return;
-  if(b.dataset.qo!=null&&quiz&&quiz.picked==null){quiz.picked=+b.dataset.qo;const ok=quiz.qs[quiz.i].opts[quiz.picked].ok;if(ok)quiz.right++;sfx(ok?"perfect":"miss");quizRender();const n=$("#qzNext");n&&n.focus();return;}
-  if(b.id==="qzNext"&&quiz){quiz.i++;quiz.picked=null;quizRender();return;}
-  if(b.id==="qzAgain"){quizStart($("#nPanel"));}});
+  if(b.dataset.qmode){quizStart($("#nPanel"),b.dataset.qmode);return;}
+  if(b.id==="qzMenu"){quizMenu($("#nPanel"));return;}
+  if(b.dataset.qo!=null&&quiz){quizPick(+b.dataset.qo);return;}
+  if(b.id==="qzNext"&&quiz){quiz.i++;quiz.picked=null;quizRender();return;}});
+document.addEventListener("keydown",e=>{if(!quiz||!isNest()||tab!=="iq")return;if(/^[1-4]$/.test(e.key)&&quiz.picked==null){e.preventDefault();quizPick(+e.key-1);}else if(e.key==="Enter"&&quiz.picked!=null&&quiz.mode!=="lightning"){const n=$("#qzNext");if(n){e.preventDefault();n.click();}}});
 
 /* ---------- hooks ---------- */
 window.addEventListener("hashchange",()=>{applySkin();if(!/^#nest/.test(location.hash))stopGame();if(/^#profile/.test(location.hash))setTimeout(renderCodeCard,450);});

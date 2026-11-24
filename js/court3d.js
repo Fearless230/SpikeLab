@@ -47,7 +47,7 @@ VB.court=(function(){
     else if(p.me&&s.steps&&s.steps.length>1&&/^(spike|pipe|slide|sprawl|jumpfloat|serve|quick|shoot|tip|roll|cut|sidedive)$/.test(name)){const st=s.steps.slice().sort((a,b)=>a.n-b.n),a=st[0],A=v=>Math.atan2(-v[1],v[0]),P0=VB.Athlete.sample(clip,0,pl.a.lefty),P1=VB.Athlete.sample(clip,tc,pl.a.lefty);
       yaw=A([p.x-a.x,p.z-a.z])-A([P1.x-P0.x,P1.z-P0.z]);}
     else yaw=p.face||0;
-    const P=VB.Athlete.sample(clip,tc,pl.a.lefty),k=pl.root.scl[0]||1,c=Math.cos(yaw),sn=Math.sin(yaw),ox=(c*P.x+sn*P.z)*k,oz=(-sn*P.x+c*P.z)*k;
+    const P=VB.Athlete.sample(clip,tc,pl.a.lefty,pl.a),k=pl.root.scl[0]||1,c=Math.cos(yaw),sn=Math.sin(yaw),ox=(c*P.x+sn*P.z)*k,oz=(-sn*P.x+c*P.z)*k;
     pl.root.rot=[0,yaw,0];pl.root.pos=[p.x-ox,0,p.z-oz];}
   function build(s,opts){cur=s;curOpts=opts||{};if(!ok)return;
     group.clear();people=[];select(null);const acc=ACC(),prof=(VB.state&&VB.state.profile)||{};

@@ -32,15 +32,28 @@ blender -b player.blend --python export_web.py -- ../../js/player-data.js
 
 **Change a technique from its parameters.** Edit `anim/research.py` (angles in degrees, times in seconds), check it with `python3 anim/diag.py spike`, then `./build_all.sh`.
 
+**Re-bake every clip** (the usual job after editing `anim/research.py`, `research_more.py`, `choreo.py` or `solver.py`): `python3 tools/blender/anim/bake_web.py all`. Clips are baked at **60 fps** (`--fps=30` for the old rate); the site interpolates between frames either way.
+
 **Add or change a clip without Blender.** The exported clips are the solver's local bone rotations plus the hip position, so `solver.py` and `choreo.py` can bake them in plain Python (numpy) by building the `Rig` from the bone data already in `js/player-data.js` (heads, tails and segment frames) instead of the MakeHuman assets. Re-baking an existing clip this way reproduces the exported one to within quantisation. `anim/bake_web.py` does this: `python3 tools/blender/anim/bake_web.py quick,tip` writes those clips into `js/player-data.js` and leaves everything else untouched (`--check spike` compares a re-bake with the exported clip). The clips added by `research_more.py` were made like this and are not in `player.blend` yet. **Before exporting from Blender, run `blender_anim.py` once** so the new actions exist in the .blend; otherwise `export_web.py` writes a `player-data.js` without them.
 
 **Use real motion capture.** Retarget it onto `PlayerRig` in Blender as a new action named after the clip, set the action's custom properties (`fps`, `dur`, `contact`, `hand`, `labels`, as on the existing actions), and export. The site plays any action on the rig.
 
 **Rebuild the character** (new clothing, different body shapes): `./fetch_assets.sh`, edit `char_parts.py` / `char_geo_head.py`, then `./build_all.sh`.
 
+## Art styles in the site
+
+`js/athlete.js` draws the same rig and clips two ways (`art` in the look options): **real** (default) uses the exported body unchanged, the head, eye and headband pieces, hair grown from the skin's scalp, a procedural court shoe and dual-quaternion + linear skinning (`gl.js`, `uSkin` = 2); **anime** scales the bones (`MS`), swaps in the round head, drawn face and cartoon shoes, and uses linear skinning with ink outlines. Both play the same clips; only the real style matches the skeleton the motion was solved on.
+
 ## Clothing and skin
 
 Skin that sits under clothing is not drawn: `export_web.py` flags, for every skin vertex, which pieces cover it (well inside the piece's edges), and `athlete.js` drops a skin triangle when all three corners are covered by something the player is wearing. This stops skin poking through the jersey at the shoulders and the shorts at the waist when the body bends. The exporter also smooths every clothing edge loop (hems, cuffs, collar) so the cut lines are clean.
+
+## Motion quality checks
+
+- Overhead swings (spike family, serves, slide): the cocked arm has the elbow up and back at about shoulder height and the forearm standing up beside the head. On this rig that is humeral rotation `t` of about +20 to +30 in that arm position; negative `t` there drops the hand below the elbow.
+- Locomotion: a clip's `gait` windows (`[start, end, 'walk' | 'jog' | 'run']`, set in `research.py`) swing the arms opposite to the legs instead of holding the ready position while moving. During the walk-back phases the hips turn with the feet, so turns happen during the steps.
+- Foot plants: lift-off starts from the pitch the foot left the floor with, the toes relax over the first 16 cm of foot height, and foot yaw in the air changes over the whole flight. These removed the ankle and toe snaps at take-off and the leg twists on turns.
+- To find snaps, look at peak joint speeds per clip: outside the arm swing (where 1500-2000 deg/s is real), nothing should go much past 1500 deg/s.
 
 ## Conventions
 
