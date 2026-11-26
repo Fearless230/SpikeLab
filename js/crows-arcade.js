@@ -54,8 +54,10 @@ function fx(){const F={parts:[],pops:[],rings:[],shake:0,flash:0,flashCol:"255,2
       else if(p.shape==="feather"&&A.K){A.K.featherAt(g,p.x,p.y,p.size*4,p.rot,p.col);}
       else{g.save();g.translate(p.x,p.y);g.rotate(p.rot);g.fillRect(-p.size/2,-p.size/2,p.size,p.size);g.restore();}});
     g.globalAlpha=1;
-    F.pops.forEach(p=>{const k=p.t/p.life,s=p.t<.18?ease.back(p.t/.18):1,a=k<.7?1:1-(k-.7)/.3;g.save();g.translate(p.x,p.y-ease.out(k)*36);g.scale(s,s);g.globalAlpha=Math.max(0,a);
-      g.textAlign="center";g.textBaseline="middle";g.font=`italic 800 ${p.size}px 'Barlow Condensed',sans-serif`;g.lineWidth=Math.max(3,p.size/8);g.strokeStyle="rgba(10,8,12,.85)";g.strokeText(p.txt,0,0);g.fillStyle=p.col;g.fillText(p.txt,0,0);
+    F.pops.forEach(p=>{const k=p.t/p.life,s=p.t<.18?ease.back(p.t/.18):1,a=k<.7?1:1-(k-.7)/.3;g.save();g.font=`italic 800 ${p.size}px 'Barlow Condensed',sans-serif`;
+      /* keep the text on screen */const hw=Math.max(g.measureText(p.txt).width,p.sub?p.sub.length*p.size*.2:0)/2+10,px=W>2*hw?clamp(p.x,hw,W-hw):W/2,py=clamp(p.y,p.size,H-p.size);
+      g.translate(px,py-ease.out(k)*36);g.scale(s,s);g.globalAlpha=Math.max(0,a);
+      g.textAlign="center";g.textBaseline="middle";g.lineWidth=Math.max(3,p.size/8);g.strokeStyle="rgba(10,8,12,.85)";g.strokeText(p.txt,0,0);g.fillStyle=p.col;g.fillText(p.txt,0,0);
       if(p.sub){g.font=`700 ${Math.round(p.size*.42)}px 'Barlow',sans-serif`;g.lineWidth=3;g.strokeText(p.sub,0,p.size*.72);g.fillStyle="rgba(255,255,255,.9)";g.fillText(p.sub,0,p.size*.72);}g.restore();});
     if(F.flash>0){g.fillStyle=`rgba(${F.flashCol},${F.flash*.5})`;g.fillRect(0,0,W,H);}};
   return F;}
@@ -181,6 +183,7 @@ function funDraw(g,S,ctx){const f=S._f;if(!f)return;const W=ctx.st.W,H=ctx.st.H,
 A.funStep=funStep;A.funDraw=funDraw;
 
 /* ---------- mounting a game in the Nest panel ---------- */
+const fsOk=()=>!!(document.fullscreenEnabled||document.webkitFullscreenEnabled);
 A.add=(id,def)=>{A.games[id]=def;if(!A.order.includes(id))A.order.push(id);};
 A.mount=(P,id,K)=>{A.K=K;const G=A.games[id];if(!G)return null;const c=K.C();c.mode=c.mode&&typeof c.mode==="object"?c.mode:{};const mode=A.MODES[c.mode[id]]?c.mode[id]:"varsity";
   const bm=(c.bestM&&c.bestM[id])||{},dl=A.daily(),isDaily=dl&&dl.id===id,dDone=c.daily&&c.daily[dl&&dl.day];
@@ -188,17 +191,18 @@ A.mount=(P,id,K)=>{A.K=K;const G=A.games[id];if(!G)return null;const c=K.C();c.m
       <div class="ngbest">Best <b>${G.bestOf(c)}</b><small>${esc(G.unit||"")}</small></div></div>
     <div class="arcbar"><div class="seg modes" role="group" aria-label="Difficulty">${Object.entries(A.MODES).map(([k,m])=>`<button type="button" data-amode="${k}" aria-pressed="${k===mode}" title="${esc(m.note)}">${m.label}${bm[k]?` <small>${bm[k]}</small>`:""}</button>`).join("")}</div>
       ${isDaily?`<div class="adaily ${dDone?"done":""}"><b>${dDone?"✓ Daily challenge done":"Daily challenge"}</b><span>${esc(dl.text)} · +${dl.f} feathers</span><button type="button" class="btn sm ${dDone?"":"primary"}" data-adaily ${dDone?"disabled":""}>${dDone?"Done today":"Play it"}</button></div>`:""}
-      ${G.extra||""}<button type="button" class="btn sm ghost" data-apause aria-pressed="false">Pause</button></div>
+      ${G.extra||""}<button type="button" class="btn sm ghost" data-apause aria-pressed="false">Pause</button>${fsOk()?`<button type="button" class="btn sm ghost" data-afull>Full screen</button>`:""}</div>
+    <p class="arcrot">Turn your phone sideways (or tap Full screen) for a bigger court.</p>
     <div class="gstage"><canvas id="arcCv" aria-label="${esc(G.title)} game. ${esc(G.aria||"")}"></canvas><div class="gover" id="arcOver"></div></div>
     <details class="archow"><summary>How to play and score</summary><ul>${G.how.map(h=>`<li>${h}</li>`).join("")}</ul></details></div>`;
-  const cv=$("#arcCv",P),st=stage(cv,G.W||960,G.H||560),F=fx();let S=null,mod=A.MODES[mode],runMod=mod,challenge=null,paused=false,startedAt=0;
+  const cv=$("#arcCv",P),st=stage(cv,G.W||960,G.H||560),F=fx();let S=null,mod=A.MODES[mode],runMod=mod,challenge=null,paused=false,startedAt=0,finishedAt=0;
   const over=$("#arcOver",P);
   const menu=(res)=>{over.hidden=false;over.classList.toggle("res",!!res);
     const mk0=Object.keys(A.MODES).find(k=>A.MODES[k]===mod),c0=K.C(),sn=((c0.stars||{})[id]||{})[mk0]||0,stx=n=>`<span class="ostars" aria-label="${n} of 3 stars">${[0,1,2].map(i=>`<i class="${i<n?"on":""}${mk0==="rookie"&&i===2?" cap":""}">★</i>`).join("")}</span>`;
     const ms=A.missions(c0,id),mhtml=done=>`<ul class="omiss">${ms.map(m=>`<li class="${done&&done[m.k]?"ok":""}"><span>${done&&done[m.k]?"✓":"○"}</span>${esc(m.label)}<small>+${m.f}</small></li>`).join("")}</ul>`;
     if(!res){const th=STARS[id]||[];over.innerHTML=`<b>${esc(G.title)}</b><span>${esc(G.tag||"")}</span><div class="omode">${mod.label}${challenge?" · Daily challenge":""} ${stx(sn)}</div>
       <div class="othr">${th.map((t,i)=>`<span class="${i<sn?"on":""}">${"★".repeat(i+1)} ${t}</span>`).join("")}${mk0==="rookie"?"<em>Rookie tops out at ★★</em>":""}</div>
-      <div class="omt">Missions</div>${mhtml()}<button class="btn primary" type="button" data-ago>Start</button><small class="muted">Space or Enter starts · P pauses · R restarts</small>`;return;}
+      ${G.controls?`<div class="octl">${G.controls}</div>`:""}<div class="omt">Missions</div>${mhtml()}<button class="btn primary" type="button" data-ago>Start</button><small class="muted">Enter starts · P pauses · R restarts</small>`;return;}
     const ns=res.stars||0,th=STARS[id]||[],nx=th[ns],near=ns<3&&nx!=null&&!(mk0==="rookie"&&ns>=2)?`${Math.max(1,Math.ceil(nx-res.val))} more for ${"★".repeat(ns+1)}`:"",nb2=!res.newBest&&res.prev>0&&res.val>=res.prev*.85&&res.val<res.prev?`Just ${Math.ceil(res.prev-res.val)} off your best`:"";
     over.innerHTML=`<div class="ostars big" aria-label="${ns} of 3 stars">${[0,1,2].map(i=>`<i class="${i<ns?"on":""}" style="animation-delay:${.25+i*.28}s">★</i>`).join("")}</div><b>${esc(res.head)}</b><span>${res.newBest?"New best! ":""}${esc(res.sub||"")}</span>
       ${near||nb2?`<div class="onear">${esc([nb2,near].filter(Boolean).join(" · "))}</div>`:""}<div class="ostats">${res.stats.map(([k,v])=>`<div><b>${esc(String(v))}</b><small>${esc(k)}</small></div>`).join("")}</div>
@@ -210,7 +214,7 @@ A.mount=(P,id,K)=>{A.K=K;const G=A.games[id];if(!G)return null;const c=K.C();c.m
     const perk=K.perks?K.perks():{win:1,dur:1,fill:1,power:1};runMod=Object.assign({},mod,{win:mod.win*perk.win});
     S={on:true,t:0,score:0,mode:runMod,id,challenge};A.cur=ctx;G.start(S,ctx);funStart(S,id,perk);startedAt=performance.now();cv.focus({preventScroll:true});K.sfx("tick");};
   /* the game calls this when it ends */
-  const finish=()=>{if(!S||!S.on)return;S.on=false;const r=G.result(S),c=K.C();c.games++;
+  const finish=()=>{if(!S||!S.on)return;S.on=false;finishedAt=performance.now();if(G.release)G.release(S);const r=G.result(S),c=K.C();c.games++;
     let fe=Math.round(r.fe*mod.fe);const prev=G.bestOf(c)||0;c.bestM=c.bestM||{};c.bestM[id]=c.bestM[id]||{};const mk=Object.keys(A.MODES).find(k=>A.MODES[k]===mod);
     const nb=r.best>(G.bestOf(c)||0);G.saveBest(c,r.best);if(r.best>(c.bestM[id][mk]||0))c.bestM[id][mk]=r.best;
     (r.count||[]).forEach(([k,n])=>{c.stats=c.stats||{};c.stats[k]=(c.stats[k]||0)+n;});if(r.legacy)r.legacy(c);
@@ -221,28 +225,32 @@ A.mount=(P,id,K)=>{A.K=K;const G=A.games[id];if(!G)return null;const c=K.C();c.m
     K.award(fe);K.save();menu({head:r.head,sub:r.sub,stats:f.zones?r.stats.concat([["Zones",f.zones]]):r.stats,tip:r.tip,fe,newBest:nb,daily,stars:ns,val:r.best,prev,mdone});if(ns>=3)K.sfx("thunder");
     if(nb||daily==="won")K.sfx("unlock");K.checkBadges();K.refreshStats();const be=$(".ngbest b",P);if(be)be.textContent=G.bestOf(K.C());challenge=null;};
   menu(null);
-  const togglePause=(v)=>{if(!S||!S.on)return;paused=v==null?!paused:v;const b=$("[data-apause]",P);if(b){b.setAttribute("aria-pressed",paused);b.textContent=paused?"Resume":"Pause";}
+  const togglePause=(v)=>{if(!S||!S.on)return;paused=v==null?!paused:v;if(G.release)G.release(S);const b=$("[data-apause]",P);if(b){b.setAttribute("aria-pressed",paused);b.textContent=paused?"Resume":"Pause";}
     if(paused){over.hidden=false;over.classList.remove("res");over.innerHTML=`<b>Paused</b><span>Take a breath.</span><button class="btn primary" type="button" data-aresume>Resume</button>`;}else over.hidden=true;};
   const onClick=e=>{const b=e.target.closest("button");if(!b||!P.contains(b))return;
-    if(b.hasAttribute("data-ago")){start();return;}if(b.hasAttribute("data-aresume")){togglePause(false);cv.focus({preventScroll:true});return;}if(b.hasAttribute("data-apause")){togglePause();return;}
+    if(b.hasAttribute("data-ago")){start();return;}if(b.hasAttribute("data-afull")){toggleFull();return;}if(b.hasAttribute("data-aresume")){togglePause(false);cv.focus({preventScroll:true});return;}if(b.hasAttribute("data-apause")){togglePause();return;}
     if(b.dataset.amode){if(S&&S.on)return;c.mode[id]=b.dataset.amode;K.save();mod=A.MODES[b.dataset.amode];P.querySelectorAll("[data-amode]").forEach(x=>x.setAttribute("aria-pressed",x===b));menu(null);return;}
     if(b.hasAttribute("data-adaily")){const d=A.daily();if(!d)return;const mk=d.mode||"varsity";mod=A.MODES[mk];P.querySelectorAll("[data-amode]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.amode===mk));challenge=d;start();}};
-  const down=e=>{if(!S||!S.on||paused)return;e.preventDefault();const [x,y]=st.pt(e);G.down&&G.down(S,x,y,e);};
+  const down=e=>{if(!S||!S.on||paused)return;e.preventDefault();try{cv.setPointerCapture(e.pointerId);}catch(err){}const [x,y]=st.pt(e);G.down&&G.down(S,x,y,e);};
   const move=e=>{if(!S||!S.on||paused)return;const [x,y]=st.pt(e);G.move&&G.move(S,x,y,e);};
-  const up=e=>{if(!S||!S.on||paused)return;const [x,y]=st.pt(e);G.up&&G.up(S,x,y,e);};
+  const up=e=>{if(!S||!S.on)return;const [x,y]=st.pt(e);G.up&&G.up(S,x,y,e);};
   const key=e=>{if(!K.isNest()||!document.contains(cv))return;const k=e.key;
     if((k==="p"||k==="P"||k==="Escape")&&S&&S.on){e.preventDefault();togglePause();return;}
     if((k==="r"||k==="R")&&!e.ctrlKey&&!e.metaKey&&(document.activeElement===cv||document.activeElement===document.body)&&!paused){e.preventDefault();if(S&&S.on)S.on=false;start();return;}
-    if(!S||!S.on){if((k===" "||k==="Enter")&&(document.activeElement===cv||document.activeElement===document.body)){e.preventDefault();start();}return;}
+    if(!S||!S.on){if((k===" "||k==="Enter")&&(document.activeElement===cv||document.activeElement===document.body)){e.preventDefault();/* a moment to see the results before a held key restarts */if(performance.now()-finishedAt>1300)start();}return;}
     if(paused)return;if(G.key&&G.key(S,k,e)!==false&&(k===" "||k.startsWith("Arrow")))e.preventDefault();};
   const keyUp=e=>{if(S&&S.on&&!paused&&G.keyUp)G.keyUp(S,e.key,e);};
   const vis=()=>{if(document.hidden)togglePause(true);};const blur=()=>togglePause(true);
-  cv.tabIndex=0;cv.addEventListener("pointerdown",down);cv.addEventListener("pointermove",move);cv.addEventListener("pointerup",up);P.addEventListener("click",onClick);
+  cv.tabIndex=0;cv.addEventListener("pointerdown",down);cv.addEventListener("pointermove",move);cv.addEventListener("pointerup",up);cv.addEventListener("pointercancel",up);cv.addEventListener("contextmenu",e=>e.preventDefault());P.addEventListener("click",onClick);
   window.addEventListener("keydown",key);window.addEventListener("keyup",keyUp);document.addEventListener("visibilitychange",vis);window.addEventListener("blur",blur);
+  /* full screen (sideways on phones, where it's supported) */
+  const gs=$(".gstage",P),toggleFull=()=>{const d=document,el=d.fullscreenElement||d.webkitFullscreenElement;
+    if(el){(d.exitFullscreen||d.webkitExitFullscreen).call(d);return;}const rq=gs.requestFullscreen||gs.webkitRequestFullscreen;if(!rq)return;
+    Promise.resolve(rq.call(gs)).then(()=>{try{screen.orientation&&screen.orientation.lock&&screen.orientation.lock("landscape").catch(()=>{});}catch(e){}cv.focus({preventScroll:true});}).catch(()=>{});};
   const ctx={st,F,K,get mod(){return S&&S.on?runMod:mod;},get challenge(){return challenge;},finish};A.cur=ctx;
   A.state=()=>S;/* for tests and debugging */
   G.init&&G.init(ctx);
-  const update=dt=>{A.cur=ctx;const cw=cv.clientWidth||st.W;A.ui=clamp(560/cw,1,1.6);st.begin();const g=st.g;let gdt=0;if(S&&S.on&&!paused){gdt=F.step(dt);S.t+=gdt;G.update(S,gdt,ctx,dt);if(S.on)funStep(S,gdt,dt,ctx,G);}else F.step(paused?0:dt);
+  const update=dt=>{A.cur=ctx;const cw=cv.clientWidth||st.W;A.ui=clamp(560/cw,1,1.6);st.begin();const g=st.g;let gdt=0;if(S&&S.on&&!paused){gdt=F.step(dt);S.t+=gdt;if(A.autoplay&&G.bot)G.bot(S,ctx,gdt,dt);G.update(S,gdt,ctx,dt);if(S.on)funStep(S,gdt,dt,ctx,G);}else F.step(paused?0:dt);
     const [ox,oy]=K.reduced()?[0,0]:F.offset();g.save();g.translate(ox,oy);G.draw(g,S,ctx,dt);F.draw(g,st.W,st.H);g.restore();if(S&&G.hud)G.hud(g,S,ctx);if(S&&S.on)funDraw(g,S,ctx);};
   update(0);
   return {update,stop(){window.removeEventListener("keydown",key);window.removeEventListener("keyup",keyUp);document.removeEventListener("visibilitychange",vis);window.removeEventListener("blur",blur);P.removeEventListener("click",onClick);if(S)S.on=false;}};};

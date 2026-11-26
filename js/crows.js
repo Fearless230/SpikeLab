@@ -1,6 +1,6 @@
 /* crows.js: the secret Crow's Nest.
    A secret code on the Profile page unlocks a personal edition for one player: a black-and-colour site skin, kits, volleyballs,
-   ball effects, titles and backgrounds, and the #nest page: a welcome-back boot screen, five arcade games on the engine in
+   ball effects, titles and backgrounds, and the #nest page: a welcome-back boot screen, five real-time arcade games (v9) on the engine in
    crows-arcade.js (Dig Defence, Freak Quick, Jump Serve, Block Party, Setter's Vision: three difficulties, a daily
    challenge), a volleyball quiz with three modes, a daily training camp with a challenge drill, a two-part season road
    against invented rival teams, a skill chart, a weekly goal, badges and a feather shop. Extra quiz questions and camp
@@ -157,7 +157,7 @@ const BADGES=[
   {id:"champ",name:"National Champion",desc:"Win the Nationals final on the season road",have:c=>c.road.length,n:10,f:150,r:()=>[["title","champ"]]},
   /* v8.8: the arcade, the quiz modes, the camp challenge and the second season */
   {id:"wave10",name:"Ten waves deep",desc:"Reach wave 10 in Dig Defence",have:c=>st(c,"bestWave"),n:10,f:80,r:()=>[["title","libero"]]},
-  {id:"leaves",name:"Good eye",desc:"Leave 25 deflections that fly out in Dig Defence",have:c=>st(c,"leaves"),n:25,f:40,r:()=>[]},
+  {id:"leaves",name:"Good eye",desc:"Leave 25 spikes that are going out in Dig Defence",have:c=>st(c,"leaves"),n:25,f:40,r:()=>[]},
   {id:"perfect100",name:"Iron platform",desc:"Make 100 perfect digs",have:c=>st(c,"perfectDigs"),n:100,f:70,r:()=>[["title","iron"]]},
   {id:"tool",name:"Tool time",desc:"Tool the block 15 times in Freak Quick",have:c=>st(c,"tools"),n:15,f:50,r:()=>[["title","tool"]]},
   {id:"quick20",name:"Too fast to block",desc:"Hit a streak of 20 in Freak Quick",have:c=>c.best.quick,n:20,f:90,r:()=>[["title","rocket"]]},
@@ -258,6 +258,8 @@ function sfx(kind,arg){if(!on()||G().mute)return;try{AC=AC||new (window.AudioCon
     tone(f,.14,"triangle",0,.32);tone(f*2,.08,"sine",.01,.12);}
   else if(kind==="zone"){noise(.6,0,.6,1400);[392,523,659,784,1047].forEach((f,i)=>tone(f,.22,"square",i*.05,.18));tone(65,.9,"sawtooth",0,.5,130);}
   else if(kind==="power"){noise(.3,0,1,5000);tone(60,.4,"sawtooth",0,.8,30);tone(1200,.2,"square",0,.2,300);}
+  else if(kind==="jump"){/* a shoe squeak off the floor */tone(1900,.05,"sine",0,.12,2700);noise(.04,0,.15,6000);}
+  else if(kind==="thud"){tone(120,.12,"sine",0,.5,60);noise(.05,0,.25,900);}
   else if(kind==="whistle"){tone(2350,.16,"sine",0,.4,2300);tone(2350,.3,"sine",.2,.45,2250);}}
 
 /* ---------- crow silhouette (an original simple bird shape) ---------- */
