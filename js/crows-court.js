@@ -84,7 +84,7 @@ function shafts(g,t,hype){g.save();g.globalCompositeOperation="lighter";for(let 
     g.fillStyle="rgba(255,248,230,.95)";g.fillRect(x-16,2,32,5);}g.restore();}
 /* the crowd: six rows that bob, cheer with their arms up on big points, wave flags and flash phones */
 const CROWD=[];(function(){for(let r=0;r<6;r++){const y=HZ*(.5+r*.075),sz=4.6+r*.85,n=Math.floor(BW/(sz*2.9));for(let i=0;i<n;i++){const h=Math.sin(i*12.9898+r*78.233)*43758.5453,f=h-Math.floor(h);
-  CROWD.push({x:(i+.5)/n*BW+(f-.5)*sz,y,sz,f,r,shirt:f<.1?2:0,flag:f>.975});}}})();
+  CROWD.push({x:(i+.5)/n*BW+(f-.5)*sz,y,sz,f,r,shirt:f<.1?2:0,flag:f>.988});}}})();
 function crowd(g,t,hype,acc,col2){const pal=["#1a161e","#211c26","#28222d","#1e1a23"];
   CROWD.forEach(c=>{const fan=c.x<BW/2?acc:col2,jump=hype>.15&&c.f>.35?Math.abs(Math.sin(t*(7+c.f*4)+c.f*20))*hype*c.sz*1.4:0,bob=Math.max(0,Math.sin(t*(3+c.f*3)+c.f*9))*1.6+jump;
     const x=c.x,y=c.y-bob,s=c.sz;g.globalAlpha=c.shirt===2?.5:1;g.fillStyle=c.shirt===2?fan:pal[(c.f*40|0)%4];D.round(g,x-s*1.05,y+s*.7,s*2.1,s*2.6,s*.6);g.fill();g.globalAlpha=1;

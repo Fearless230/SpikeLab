@@ -62,7 +62,14 @@ Import the repository at vercel.com (**Add New → Project**), keep the framewor
 1. Run **`node tools/release.mjs --site https://<your-username>.github.io/<repository-name>/`** (Node 18 or newer, nothing to install). It bumps `VERSION` in `sw.js` so phones pick up the new files, lists every file in `CORE` for offline use, updates the Content-Security-Policy hash in `index.html`, and makes the share-preview image address absolute so link previews show it. `node tools/release.mjs --check` changes nothing and fails if something is out of date.
 2. If `supabase/schema.sql` changed, **run it again** in Supabase > SQL Editor. It is safe to re-run.
 
-### This release (v10.1): Crow Spike, re-animated
+### This release (v10.2): spike effects
+- **Tiered spike effects:** every spike gets a star glint where the hand meets the ball, a ring of air and a few sparks. Perfect timing or a hard hit adds streaks that ride behind the ball and spin arcs. The big theatrics (lightning that follows the ball and strikes the floor, a lens flare, a brief impact frame) are kept for the Thunder Spike.
+- **Floor impact:** shockwave rings across the floor, sparks, and cracks under the hardest kills. Your perfect kills land in a short slow-motion beat.
+- **Iron Wall** shows a hexagon shield on a stuff block.
+- **Timing ring:** when you jump to spike, a ring at your hitting hand closes in as the ball approaches. It turns orange inside your hit window and gold at the perfect spot. Each hit shows PERFECT, GOOD or OFF-CENTRE.
+- **Calmer:** no more full-screen speed lines or blackout frames on ordinary spikes, and a softer flash on specials.
+
+### Earlier (v10.1): Crow Spike, re-animated
 - **A camera director** frames every play: close on the server, pushing in on the hitter, pulling out for a high set, punching in on big kills.
 - **New athletes:** cel-shaded with ink outlines, shaped muscles, faces whose eyes follow the ball, five hair styles that bounce, headbands on the middles.
 - **Spring-driven animation:** every move overshoots and settles, bodies squash on landing and stretch on take-off, sprinting leans and pumps the arms, ready stances bounce on the toes, and players celebrate or slump after each point.

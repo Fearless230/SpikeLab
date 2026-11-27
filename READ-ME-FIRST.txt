@@ -1,7 +1,6 @@
-Volleyball Training Journey v10.1 - changed files only (since v10)
+Volleyball Training Journey v10.2 - changed files only (since v10.1)
 
-Copy these files into your repo, keeping the folders (js/), then commit and push:
-  sw.js, README.md, js/crows-arcade.js, js/crows-court.js, js/crows-spike.js
+Copy these into your repo, keeping the js/ folder, then commit and push:
+  sw.js, README.md, js/crows-court.js, js/crows-spike.js
 
-If you haven't uploaded v10 yet: upload the v10 zip first, then this one,
-and remember to delete js/crows-games.js.
+If you have not uploaded v10 and v10.1 yet, upload those first.
