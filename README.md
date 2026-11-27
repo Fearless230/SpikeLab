@@ -62,7 +62,16 @@ Import the repository at vercel.com (**Add New → Project**), keep the framewor
 1. Run **`node tools/release.mjs --site https://<your-username>.github.io/<repository-name>/`** (Node 18 or newer, nothing to install). It bumps `VERSION` in `sw.js` so phones pick up the new files, lists every file in `CORE` for offline use, updates the Content-Security-Policy hash in `index.html`, and makes the share-preview image address absolute so link previews show it. `node tools/release.mjs --check` changes nothing and fails if something is out of date.
 2. If `supabase/schema.sql` changed, **run it again** in Supabase > SQL Editor. It is safe to re-run.
 
-### This release (v10): Crow Spike and Volleyball IQ
+### This release (v10.1): Crow Spike, re-animated
+- **A camera director** frames every play: close on the server, pushing in on the hitter, pulling out for a high set, punching in on big kills.
+- **New athletes:** cel-shaded with ink outlines, shaped muscles, faces whose eyes follow the ball, five hair styles that bounce, headbands on the middles.
+- **Spring-driven animation:** every move overshoots and settles, bodies squash on landing and stretch on take-off, sprinting leans and pumps the arms, ready stances bounce on the toes, and players celebrate or slump after each point.
+- **Impact:** anime impact frames and speed lines on hard spikes and stuff blocks, afterimages on jumps and dives, arm-swing smears, a ball that stretches with speed and squashes on contact, a net that bulges and ripples, ball marks and shockwaves on the floor, and footstep and dive dust.
+- **The arena:** deep stands with parallax, a cheering crowd with flags and phone flashes, light shafts, a scrolling LED board with the score, and players reflected in the varnished floor.
+- **Adaptive quality:** if frames slow down, the costliest effects switch off first, then the resolution drops, so it stays smooth on older phones.
+- **Balance:** fewer stuff blocks and touchouts, and hard spikes beat the defence more often, so rallies are a mix of quick kills and long scrambles.
+
+### Earlier (v10): Crow Spike and Volleyball IQ
 - **Crow Spike.** The five separate games are now one 3-on-3 side-view volleyball game in the style of *The Spike*: serve (spin, float, standing), receive, set (quick, high, pipe), spike, tip, dump, block, dive, power specials with a Spirit meter, slow-motion replays, cut-ins and a scoreboard.
 - **Modes:** a 10-chapter story against 10 rival schools, quick match, a knockout tournament, four training drills with stars, two-player versus on one keyboard, and a team screen to spend feathers on stats and pick your role (wing spiker, middle blocker or setter).
 - **Volleyball IQ 2.0** replaces the old quiz: 12 career levels with lifelines, a daily five, a referee mode, a 60-second lightning round, three-strikes survival, a mistake review that brings back what you got wrong, and mastery per topic. 47 new questions.

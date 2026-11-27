@@ -26,8 +26,8 @@ A.MODES={rookie:{label:"Rookie",k:.78,win:1.35,fe:.6,note:"Slower, wider timing 
   national:{label:"National",k:1.22,win:.72,fe:1.6,note:"Faster, tighter, trickier. ×1.6 feathers"}};
 
 /* ---------- stage: a canvas drawn in fixed logical units at the screen's pixel density ---------- */
-function stage(cv,W,H){const dpr=Math.min(2.5,window.devicePixelRatio||1);cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);const g=cv.getContext("2d");
-  return {g,W,H,dpr,begin(){g.setTransform(dpr,0,0,dpr,0,0);},pt(e){const r=cv.getBoundingClientRect();return [(e.clientX-r.left)/r.width*W,(e.clientY-r.top)/r.height*H];}};}
+function stage(cv,W,H){let dpr=Math.min(2.5,window.devicePixelRatio||1);cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);const g=cv.getContext("2d");
+  return {g,W,H,dpr,full:dpr,res(d){d=Math.min(d,this.full);if(d===dpr)return;dpr=d;this.dpr=d;cv.width=Math.round(W*d);cv.height=Math.round(H*d);},begin(){g.setTransform(dpr,0,0,dpr,0,0);},pt(e){const r=cv.getBoundingClientRect();return [(e.clientX-r.left)/r.width*W,(e.clientY-r.top)/r.height*H];}};}
 A.stage=stage;
 
 /* ---------- effects: particles, pop-ups, shake, flash, slow motion ---------- */
@@ -110,7 +110,7 @@ D.arena=(W,H,horizon,acc)=>{const c=document.createElement("canvas"),dpr=Math.mi
   const st=g.createLinearGradient(0,horizon*.35,0,horizon);st.addColorStop(0,"#0d0b10");st.addColorStop(1,"#1d1720");g.fillStyle=st;g.fillRect(0,horizon*.42,W,horizon*.58);
   /* banners */
   const ban=(x,w,txt)=>{g.fillStyle="#0b0a0d";g.fillRect(x,horizon*.2,w,horizon*.17);g.strokeStyle=acc;g.lineWidth=3;g.strokeRect(x+4,horizon*.2+4,w-8,horizon*.17-8);g.fillStyle=acc;g.font=`italic 800 ${Math.round(horizon*.11)}px 'Barlow Condensed',sans-serif`;g.textAlign="center";g.textBaseline="middle";g.fillText(txt,x+w/2,horizon*.285);};
-  ban(W*.06,W*.2,"FLY");ban(W*.74,W*.2,"KARASUNO");if(A.K)A.K.crowAt(g,W*.5,horizon*.27,1.6,false,acc);
+  ban(W*.06,W*.2,"FLY");ban(W*.74,W*.2,"CROW'S NEST");if(A.K)A.K.crowAt(g,W*.5,horizon*.27,1.6,false,acc);
   return c;};
 /* crowd heads drawn live so they bob with the rally */
 D.crowd=(g,W,horizon,t,hype,acc)=>{const rows=3;for(let r=0;r<rows;r++){const y0=horizon*(.5+r*.16),n=34+r*4,sz=5+r*1.6;for(let i=0;i<n;i++){const seed=Math.sin(i*12.9898+r*78.233)*43758.5453,f=seed-Math.floor(seed);
