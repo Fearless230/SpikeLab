@@ -62,8 +62,11 @@ C.drawGym=(g,cam,acc,hype,t)=>{const W=cam.W,H=cam.H,k=W+"|"+H+"|"+acc+"|"+cam.f
   g.drawImage(back,0,0,W,H);D.crowd(g,W,cam.FY0-6,t,hype||0,acc);
   /* dim the crowd so the ball always reads against it */
   const dim=g.createLinearGradient(0,0,0,cam.FY0);dim.addColorStop(0,"rgba(6,5,9,.35)");dim.addColorStop(.6,"rgba(6,5,9,.5)");dim.addColorStop(1,"rgba(6,5,9,.62)");g.fillStyle=dim;g.fillRect(0,0,W,cam.FY0);
+  /* a moving camera paints the floor live; a still one keeps it cached */
+  if(cam.live){paintFloor(g,cam);return;}
   const fk=k+"|"+cam.x+"|"+cam.s;if(fk!==floorKey){floorKey=fk;floor=makeFloor(cam);}g.drawImage(floor,0,0,W,H);};
-function makeFloor(cam){const c=document.createElement("canvas"),dpr=Math.min(2,devicePixelRatio||1),W=cam.W,H=cam.H;c.width=W*dpr;c.height=H*dpr;const g=c.getContext("2d");g.scale(dpr,dpr);
+function makeFloor(cam){const c=document.createElement("canvas"),dpr=Math.min(2,devicePixelRatio||1),W=cam.W,H=cam.H;c.width=W*dpr;c.height=H*dpr;const g=c.getContext("2d");g.scale(dpr,dpr);paintFloor(g,cam);return c;}
+function paintFloor(g,cam){const W=cam.W,H=cam.H;g.save();
   /* free zone, then the court */
   const fz=g.createLinearGradient(0,cam.FY0,0,H);fz.addColorStop(0,"#3c1a08");fz.addColorStop(1,"#5d2a0c");g.fillStyle=fz;g.fillRect(0,cam.FY0,W,H-cam.FY0);
   const q=(x0,x1,d0,d1)=>{g.beginPath();g.moveTo(cam.DX(x0,d0),cam.DY(d0));g.lineTo(cam.DX(x1,d0),cam.DY(d0));g.lineTo(cam.DX(x1,d1),cam.DY(d1));g.lineTo(cam.DX(x0,d1),cam.DY(d1));g.closePath();};
@@ -80,7 +83,7 @@ function makeFloor(cam){const c=document.createElement("canvas"),dpr=Math.min(2,
   g.font="700 11px 'Barlow',sans-serif";g.fillStyle="rgba(255,255,255,.3)";g.textAlign="center";[[-3,"3 m"],[3,"3 m"]].forEach(([x,t])=>g.fillText(t,cam.DX(x,1),cam.DY(1)+2));
   /* a fade at the bottom so the buttons read */
   const bt=g.createLinearGradient(0,cam.FY1,0,H);bt.addColorStop(0,"rgba(8,6,10,0)");bt.addColorStop(1,"rgba(8,6,10,.55)");g.fillStyle=bt;g.fillRect(0,cam.FY1,W,H-cam.FY1);
-  return c;}
+  g.restore();}
 /* a lit stripe on the floor between x0 and x1 (target zones, landing marks) */
 C.floorZone=(g,cam,x0,x1,col,a)=>{g.fillStyle=`rgba(${col},${a})`;g.beginPath();g.moveTo(cam.DX(x0,.1),cam.DY(.1));g.lineTo(cam.DX(x1,.1),cam.DY(.1));g.lineTo(cam.DX(x1,.9),cam.DY(.9));g.lineTo(cam.DX(x0,.9),cam.DY(.9));g.closePath();g.fill();};
 /* the net: posts at both sidelines, the mesh, the white tape and the antennas, in perspective */

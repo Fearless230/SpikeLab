@@ -89,19 +89,22 @@ const QN=10;
 const arcadeNational=c=>{const A=VB.crowArcade;return A?A.order.filter(id=>c.bestM&&c.bestM[id]&&c.bestM[id].national>0).length:0;};
 const st=(c,k)=>+(c.stats&&c.stats[k])||0;
 const campDays=c=>Object.values(c.camp).filter(a=>Array.isArray(a)&&a.length>=3).length;
+/* Crow Spike (v10): the career totals, wins, story and drills */
+const spk=c=>c.spike&&typeof c.spike==="object"?c.spike:{},car=(c,k)=>+((spk(c).career||{})[k])||0,drill=(c,k)=>+((spk(c).drills||{})[k])||0;
+const story=c=>spk(c).story|0,wins=c=>spk(c).wins|0;
 /* skill chart, each 0 to 100 */
-const SKILLS=[["Receive",c=>c.best.dig/400],["Attack",c=>c.best.quick/24],["Serve",c=>c.best.serve/120],["Block",c=>c.best.block/160],["Setting",c=>c.best.setter/260],
-  ["Volleyball IQ",c=>Math.max(c.best.quiz/QN,c.best.lightning/20,c.best.expert/15)],["Grit",c=>(campDays(c)+Object.keys(c.chal||{}).length)/24],["Energy",c=>(c.thunder+c.games)/120]];
+const SKILLS=[["Receive",c=>Math.max(c.best.dig/400,(car(c,"digs")+car(c,"perfect")*2)/300,drill(c,"recv")/42)],["Attack",c=>Math.max(c.best.quick/24,car(c,"kills")/150,drill(c,"spike")/55)],["Serve",c=>Math.max(c.best.serve/120,car(c,"aces")/40,drill(c,"serve")/32)],["Block",c=>Math.max(c.best.block/160,car(c,"blocks")/40,drill(c,"block")/40)],["Setting",c=>Math.max(c.best.setter/260,car(c,"assists")/100)],
+  ["Volleyball IQ",c=>Math.max(c.best.quiz/QN,c.best.lightning/20,c.best.expert/15,(c.iq&&c.iq.lvl||0)/12)],["Grit",c=>(campDays(c)+Object.keys(c.chal||{}).length)/24],["Energy",c=>(c.thunder+c.games)/120]];
 const skills=c=>SKILLS.map(([,f])=>Math.round(Math.max(0,Math.min(1,f(c)))*100));
 /* ---------- the player card: six attributes from the Haikyuu stat chart, graded E to S ----------
    XP comes from everything you have done (lifetime), so grades only go up, slowly. Each grade is capped until you earn
    enough stars (1 to 3 per game and mode) and season wins: a stat can't pass the cap however much XP it has. */
 const ATTRS=[
-  ["power","Power","Kills, aces, tooled blocks and big serves",c=>st(c,"kills")*3+c.aces*4+st(c,"tools")*3+c.best.serve*2+st(c,"quickScore")+st(c,"powerSpikes")*6],
-  ["jump","Jump","Stuff blocks, touches and your best block and attack games",c=>st(c,"stuffs")*5+st(c,"touches")*2+c.best.block*2+c.best.quick*5],
-  ["speed","Speed","Digs, perfect digs and the Lightning quiz",c=>c.digs+st(c,"perfectDigs")*2+c.best.dig+c.best.lightning*8],
-  ["tech","Technique","Perfect digs, tools, tip kills, seam aces and good leaves",c=>st(c,"perfectDigs")*2+st(c,"tools")*4+st(c,"tipKills")*4+st(c,"seams")*4+st(c,"leaves")*3],
-  ["sense","Game sense","Setter reads, dumps, the quiz and Setter's Vision",c=>st(c,"reads")*5+st(c,"dumps")*4+c.best.setter*2+c.best.quiz*15+c.best.expert*10],
+  ["power","Power","Kills, aces, touchouts and Thunder Spikes",c=>st(c,"kills")*3+c.aces*4+st(c,"tools")*3+c.best.serve*2+st(c,"quickScore")+st(c,"powerSpikes")*6+car(c,"kills")*3+car(c,"aces")*4+car(c,"tools")*3+car(c,"specials")*6],
+  ["jump","Jump","Stuff blocks and big spikes",c=>st(c,"stuffs")*5+st(c,"touches")*2+c.best.block*2+c.best.quick*5+car(c,"blocks")*6+Math.max(0,car(c,"top")-80)*3],
+  ["speed","Speed","Digs, perfect receives and the Lightning quiz",c=>c.digs+st(c,"perfectDigs")*2+c.best.dig+c.best.lightning*8+car(c,"digs")+car(c,"perfect")*2],
+  ["tech","Technique","Perfect receives, touchouts, tips and drills",c=>st(c,"perfectDigs")*2+st(c,"tools")*4+st(c,"tipKills")*4+st(c,"seams")*4+st(c,"leaves")*3+car(c,"perfect")*2+car(c,"tools")*4+car(c,"tips")*3+["recv","spike","serve","block"].reduce((a,k)=>a+drill(c,k)*2,0)],
+  ["sense","Game sense","Assists, dumps, the story and the quiz",c=>st(c,"reads")*5+st(c,"dumps")*4+c.best.setter*2+c.best.quiz*15+c.best.expert*10+car(c,"assists")*3+car(c,"dumps")*5+story(c)*40+((c.iq&&c.iq.xp)||0)],
   ["stam","Stamina","Games played, camp days, challenge drills, daily challenges and Zones",c=>c.games*6+campDays(c)*40+Object.keys(c.chal||{}).length*30+c.dailyN*25+st(c,"zones")*5]];
 const GRADES=["E","D","C","B","A","S"],GXP=[0,120,400,1000,2200,4500],RANKS=["Benchwarmer","Rookie","Starter","Regular","Ace","Monster"];
 const starTotal=c=>VB.crowArcade?VB.crowArcade.starTotal(c):0,starMax=()=>VB.crowArcade?VB.crowArcade.starMax():40;
@@ -135,43 +138,47 @@ function playerCard(P){const c=C(),p=ME(),pr=VB.state.profile||{},a=attrs(c),L=l
     <div class="kc-main">${hexCard(c)}
       <div class="kc-rows">${a.map(x=>`<div class="kc-row ${x.capped?"capped":""}"><span class="kc-g" style="background:${GCOL[x.g]}">${GRADES[x.g]}</span><div><div class="kc-rh"><b>${esc(x.l)}</b><small>${x.g>=5?"Maxed":x.capped?"Capped at "+GRADES[cap]+" · "+x.xp.toLocaleString()+" XP waiting":x.xp.toLocaleString()+" / "+x.next.toLocaleString()+" XP to "+GRADES[x.g+1]}</small></div>
         <span class="kc-bar"><i style="width:${Math.round(x.prog*100)}%;background:${GCOL[Math.min(5,x.g+1)]}"></i></span><small class="muted">${esc(x.how)}</small></div></div>`).join("")}</div></div>
-    <div class="kc-foot"><div class="card"><div class="kicker">Grade caps</div><p class="small muted">Like a real player, XP alone won't make you an ace. Every grade above D is locked until you earn stars in the arcade (1 to 3 per game and difficulty, Rookie tops out at 2) and win season matches.</p>
+    <div class="kc-foot"><div class="card"><div class="kicker">Grade caps</div><p class="small muted">Like a real player, XP alone won't make you an ace. Every grade above D is locked until you earn stars in Crow Spike (1 to 3 per story chapter and per training drill) and win season matches.</p>
         <ol class="kc-caps">${CAPS.map(([gi,ns,nw])=>{const ok=sT>=ns&&c.road.length>=nw;return `<li class="${ok?"ok":gi===(nextCap&&nextCap[0])?"next":""}"><span class="kc-g" style="background:${GCOL[gi]}">${GRADES[gi]}</span><div><b>${ok?"Unlocked":"Locked"}</b><small>${ns} ★${nw?` and ${nw} match wins`:""}</small></div></li>`;}).join("")}</ol></div>
-      <div class="card"><div class="kicker">Perks from your grades</div><ul class="kc-perks"><li><b>+${Math.round((pk.win-1)*100)}%</b> timing windows <small>Technique</small></li><li><b>+${Math.round((pk.dur-1)*100)}%</b> Zone length <small>Stamina</small></li><li><b>+${Math.round((pk.fill-1)*100)}%</b> Zone fill speed <small>Game sense</small></li><li><b>+${Math.round((pk.power-1)*100)}%</b> Power Spike charge <small>Power</small></li></ul>
-        ${A?`<div class="kicker" style="margin-top:12px">Stars by game</div><table class="arec kc-stars"><thead><tr><th>Game</th>${Object.keys(A.MODES).map(m=>`<th>${A.MODES[m].label}</th>`).join("")}</tr></thead><tbody>${Object.keys(A.STARS).map(id=>{const G2=A.games[id];if(!G2)return "";const s2=(c.stars||{})[id]||{};return `<tr><td>${esc(G2.title)}</td>${Object.keys(A.MODES).map(m=>`<td class="st">${[0,1,2].map(i=>`<i class="${i<(s2[m]||0)?"on":""}${m==="rookie"&&i===2?" cap":""}">★</i>`).join("")}</td>`).join("")}</tr>`;}).join("")}</tbody></table>`:""}</div></div></div>`;}
+      <div class="card"><div class="kicker">Perks from your grades</div><ul class="kc-perks"><li><b>+${Math.round((pk.win-1)*100)}%</b> contact window <small>Technique</small></li><li><b>+${Math.round((pk.dur-1)*100)}%</b> special duration <small>Stamina</small></li><li><b>+${Math.round((pk.fill-1)*100)}%</b> Spirit gain <small>Game sense</small></li><li><b>+${Math.round((pk.power-1)*25)}%</b> spike speed <small>Power</small></li></ul>
+        ${(()=>{const sp=VB.crowSpike,st2=(c.stars&&c.stars.spike)||{},dr=(c.stars&&c.stars.drill)||{};if(!sp)return "";return `<div class="kicker" style="margin-top:12px">Stars · Crow Spike</div><table class="arec kc-stars"><tbody>${sp.STORY.map((x,i)=>`<tr><td>${i+1}. ${esc(sp.RIVALS.find(r=>r.id===x.r).name)}</td><td class="st">${[0,1,2].map(k=>`<i class="${k<(st2[x.r]||0)?"on":""}">★</i>`).join("")}</td></tr>`).join("")}${["recv","spike","serve","block"].map(k=>`<tr><td>${{recv:"Receive",spike:"Spike",serve:"Serve",block:"Block"}[k]} drill</td><td class="st">${[0,1,2].map(i=>`<i class="${i<(dr[k]||0)?"on":""}">★</i>`).join("")}</td></tr>`).join("")}</tbody></table>`;})()}</div></div></div>`;}
 const BADGES=[
   {id:"welcome",name:"Welcome to Karasuno",desc:"Enter your secret code",have:()=>1,n:1,f:50,r:p=>[["ball",p.start.ball],["fx",p.start.fx],["title",p.start.title],["bg",p.start.bg]]},
-  {id:"digs",name:"Nice receive!",desc:"Dig 25 balls in Dig Defence",have:c=>c.digs,n:25,f:20,r:()=>[]},
-  {id:"guardian",name:"Guardian Deity",desc:"Score 30 in one game of Dig Defence",have:c=>c.best.dig,n:30,f:40,r:()=>[["title","guardian"]]},
-  {id:"wall",name:"Not on my floor",desc:"Score 60 in one game of Dig Defence",have:c=>c.best.dig,n:60,f:60,r:()=>[["ball","sunset"]]},
-  {id:"quick5",name:"First tempo",desc:"Hit a streak of 5 in Freak Quick",have:c=>c.best.quick,n:5,f:20,r:()=>[]},
-  {id:"quick",name:"Freak Quick",desc:"Hit a streak of 10 in Freak Quick",have:c=>c.best.quick,n:10,f:50,r:()=>[["title","quick"],["fx","thunder"]]},
-  {id:"serve",name:"Service Ace",desc:"Score 20 in one game of Jump Serve",have:c=>c.best.serve,n:20,f:40,r:()=>[["title","server"],["ball","ace"]]},
-  {id:"aces",name:"Ace machine",desc:"Hit 50 aces in Jump Serve",have:c=>c.aces,n:50,f:50,r:()=>[]},
+  {id:"digs",name:"Nice receive!",desc:"Dig 25 balls in Crow Spike",have:c=>c.digs+car(c,"digs"),n:25,f:20,r:()=>[]},
+  {id:"guardian",name:"Guardian Deity",desc:"Make 25 perfect receives",have:c=>st(c,"perfectDigs")+car(c,"perfect"),n:25,f:40,r:()=>[["title","guardian"]]},
+  {id:"wall",name:"Not on my floor",desc:"Win your first Crow Spike match",have:c=>Math.max(c.best.dig>=60?1:0,wins(c)),n:1,f:60,r:()=>[["ball","sunset"]]},
+  {id:"quick5",name:"First tempo",desc:"Score 5 kills in one match",have:c=>Math.max(c.best.quick>=5?5:0,spk(c).bestKills|0),n:5,f:20,r:()=>[]},
+  {id:"quick",name:"Freak Quick",desc:"Win story chapter 3",have:c=>Math.max(c.best.quick>=10?3:0,story(c)),n:3,f:50,r:()=>[["title","quick"],["fx","thunder"]]},
+  {id:"serve",name:"Service Ace",desc:"Hit 10 aces",have:c=>c.aces+car(c,"aces"),n:10,f:40,r:()=>[["title","server"],["ball","ace"]]},
+  {id:"aces",name:"Ace machine",desc:"Hit 50 aces",have:c=>c.aces+car(c,"aces"),n:50,f:50,r:()=>[]},
   {id:"thunder",name:"Rolling Thunder",desc:"Press the big hype button 10 times",have:c=>c.thunder,n:10,f:30,r:()=>[["title","thunder"]]},
-  {id:"brain",name:"Volleyball Brain",desc:`Get all ${QN} right in Volleyball IQ`,have:c=>c.best.quiz>=QN?1:0,n:1,f:50,r:()=>[["title","brain"]]},
+  {id:"brain",name:"Volleyball Brain",desc:"Get 6 out of 6 on a Volleyball IQ career level",have:c=>c.best.quiz>=QN||(c.iq&&c.iq.perfect)?1:0,n:1,f:50,r:()=>[["title","brain"]]},
   {id:"camp3",name:"Training camp",desc:"Finish the daily camp on 3 days",have:c=>campDays(c),n:3,f:60,r:()=>[["bg","orange"]]},
   {id:"camp7",name:"Karasuno Ace",desc:"Finish the daily camp on 7 days",have:c=>campDays(c),n:7,f:100,r:()=>[["title","ace"]]},
   {id:"goal",name:"Promise kept",desc:"Finish a weekly goal",have:c=>c.goalsDone||0,n:1,f:30,r:()=>[]},
   {id:"allround",name:"All-Rounder",desc:"Reach 50 in every skill on your skill chart",have:c=>Math.min(...skills(c)),n:50,f:80,r:()=>[["title","allround"]]},
   {id:"champ",name:"National Champion",desc:"Win the Nationals final on the season road",have:c=>c.road.length,n:10,f:150,r:()=>[["title","champ"]]},
   /* v8.8: the arcade, the quiz modes, the camp challenge and the second season */
-  {id:"wave10",name:"Ten waves deep",desc:"Reach wave 10 in Dig Defence",have:c=>st(c,"bestWave"),n:10,f:80,r:()=>[["title","libero"]]},
-  {id:"leaves",name:"Good eye",desc:"Leave 25 spikes that are going out in Dig Defence",have:c=>st(c,"leaves"),n:25,f:40,r:()=>[]},
-  {id:"perfect100",name:"Iron platform",desc:"Make 100 perfect digs",have:c=>st(c,"perfectDigs"),n:100,f:70,r:()=>[["title","iron"]]},
-  {id:"tool",name:"Tool time",desc:"Tool the block 15 times in Freak Quick",have:c=>st(c,"tools"),n:15,f:50,r:()=>[["title","tool"]]},
-  {id:"quick20",name:"Too fast to block",desc:"Hit a streak of 20 in Freak Quick",have:c=>c.best.quick,n:20,f:90,r:()=>[["title","rocket"]]},
-  {id:"seam",name:"Seam hunter",desc:"Hit 10 seam aces in Jump Serve",have:c=>st(c,"seams"),n:10,f:50,r:()=>[["title","seam"]]},
-  {id:"serve40",name:"Service pressure",desc:"Score 40 in one game of Jump Serve",have:c=>c.best.serve,n:40,f:60,r:()=>[]},
-  {id:"stuff10",name:"First stuffs",desc:"Get 10 stuff blocks in Block Party",have:c=>st(c,"stuffs"),n:10,f:40,r:()=>[]},
-  {id:"wall",name:"Monster block",desc:"Score 40 in one game of Block Party",have:c=>c.best.block,n:40,f:80,r:()=>[["title","wall"]]},
-  {id:"reads",name:"Setter's eyes",desc:"Make 30 perfect reads in Setter's Vision",have:c=>st(c,"reads"),n:30,f:50,r:()=>[["title","commander"]]},
-  {id:"setter",name:"Setter Genius",desc:"Score 80 in one game of Setter's Vision",have:c=>c.best.setter,n:80,f:80,r:()=>[["title","setter"]]},
-  {id:"dumps",name:"Sneaky setter",desc:"Land 5 setter dumps",have:c=>st(c,"dumps"),n:5,f:40,r:()=>[["title","maestro"]]},
+  {id:"wave10",name:"Ten wins",desc:"Win 10 Crow Spike matches",have:c=>Math.max(st(c,"bestWave")>=10?10:0,wins(c)),n:10,f:80,r:()=>[["title","libero"]]},
+  {id:"leaves",name:"Good eye",desc:"Score 30 in the Receive drill",have:c=>Math.max(st(c,"leaves")>=25?30:0,drill(c,"recv")),n:30,f:40,r:()=>[]},
+  {id:"perfect100",name:"Iron platform",desc:"Make 100 perfect receives",have:c=>st(c,"perfectDigs")+car(c,"perfect"),n:100,f:70,r:()=>[["title","iron"]]},
+  {id:"tool",name:"Touchout",desc:"Hit 15 touchouts off the block",have:c=>st(c,"tools")+car(c,"tools"),n:15,f:50,r:()=>[["title","tool"]]},
+  {id:"quick20",name:"Too fast to block",desc:"Score 10 kills in one match",have:c=>Math.max(c.best.quick>=20?10:0,spk(c).bestKills|0),n:10,f:90,r:()=>[["title","rocket"]]},
+  {id:"seam",name:"110 km/h",desc:"Hit a spike or serve at 110 km/h",have:c=>Math.max(st(c,"seams")>=10?110:0,car(c,"top")),n:110,f:50,r:()=>[["title","seam"]]},
+  {id:"serve40",name:"Service pressure",desc:"Score 24 in the Serve drill",have:c=>Math.max(c.best.serve>=40?24:0,drill(c,"serve")),n:24,f:60,r:()=>[]},
+  {id:"stuff10",name:"First stuffs",desc:"Get 10 stuff blocks",have:c=>st(c,"stuffs")+car(c,"blocks"),n:10,f:40,r:()=>[]},
+  {id:"wall",name:"Monster block",desc:"Score 30 in the Block drill",have:c=>Math.max(c.best.block>=40?30:0,drill(c,"block")),n:30,f:80,r:()=>[["title","wall"]]},
+  {id:"reads",name:"Setter's eyes",desc:"Make 30 assists",have:c=>st(c,"reads")+car(c,"assists"),n:30,f:50,r:()=>[["title","commander"]]},
+  {id:"setter",name:"Setter Genius",desc:"Win a match as the setter",have:c=>Math.max(c.best.setter>=80?1:0,(spk(c).roleWins||{}).SE|0),n:1,f:80,r:()=>[["title","setter"]]},
+  {id:"dumps",name:"Sneaky setter",desc:"Land 5 setter dumps",have:c=>st(c,"dumps")+car(c,"dumps"),n:5,f:40,r:()=>[["title","maestro"]]},
   {id:"lightning",name:"Lightning Brain",desc:"Get 15 right in a Lightning round",have:c=>c.best.lightning,n:15,f:70,r:()=>[["title","lightning"]]},
-  {id:"expert",name:"Rules expert",desc:"Get 12 right in Expert mode",have:c=>c.best.expert,n:12,f:80,r:()=>[]},
-  {id:"national",name:"National level",desc:"Score on National difficulty in all five arcade games",have:arcadeNational,n:5,f:120,r:()=>[["bg","storm"]]},
-  {id:"daily5",name:"Daily grinder",desc:"Complete 5 daily challenges",have:c=>c.dailyN,n:5,f:60,r:()=>[["title","daily"]]},
+  {id:"expert",name:"Rules expert",desc:"Get 12 right in Survival",have:c=>c.best.expert,n:12,f:80,r:()=>[]},
+  {id:"national",name:"National level",desc:"Win 5 matches on National",have:c=>Math.max(arcadeNational(c),spk(c).natWins|0),n:5,f:120,r:()=>[["bg","storm"]]},
+  {id:"daily5",name:"Daily grinder",desc:"Play the Daily 5 quiz on 5 days",have:c=>c.dailyN,n:5,f:60,r:()=>[["title","daily"]]},
+  {id:"story10",name:"Spring Cup",desc:"Finish the Crow Spike story",have:story,n:10,f:200,r:()=>[["title","champ"]]},
+  {id:"trophy",name:"Silverware",desc:"Win a Crow Spike tournament",have:c=>spk(c).trophies|0,n:1,f:100,r:()=>[]},
+  {id:"special10",name:"Special move",desc:"Use your special 10 times",have:c=>car(c,"specials"),n:10,f:50,r:()=>[]},
+  {id:"iq12",name:"Volleyball scholar",desc:"Reach level 12 of the Volleyball IQ career",have:c=>(c.iq&&c.iq.lvl)||0,n:12,f:120,r:()=>[["title","brain"]]},
   {id:"chal5",name:"Above and beyond",desc:"Finish 5 camp challenge drills",have:c=>Object.keys(c.chal||{}).length,n:5,f:60,r:()=>[]},
   {id:"camp14",name:"Two weeks strong",desc:"Finish the daily camp on 14 days",have:c=>campDays(c),n:14,f:120,r:()=>[["title","storm"]]},
   {id:"world",name:"World Club Champion",desc:"Win the World Club Championship on the season road",have:c=>c.road.length,n:20,f:250,r:()=>[["title","legend"],["bg","nationals"]]}
@@ -197,26 +204,26 @@ const SHOP=[
 ];
 /* the season road: invented rival teams, one match at a time */
 const ROAD=[
-  {opp:"Riverside Owls",kind:"Practice match",need:"Play any mini-game",ok:c=>c.games>=1,f:20},
-  {opp:"Granite Hill Rams",kind:"Practice match",need:"Score 15 in Dig Defence",ok:c=>c.best.dig>=15,f:25},
-  {opp:"Lakeside Herons",kind:"League",need:"Get 5 right in Volleyball IQ",ok:c=>c.best.quiz>=5,f:25},
-  {opp:"Northgate Wolves",kind:"League",need:"Hit a streak of 5 in Freak Quick",ok:c=>c.best.quick>=5,f:30},
-  {opp:"Harbor Sharks",kind:"League",need:"Score 10 in Jump Serve",ok:c=>c.best.serve>=10,f:30},
+  {opp:"Riverside Owls",kind:"Practice match",need:"Play a match or a quiz",ok:c=>c.games>=1,f:20},
+  {opp:"Granite Hill Rams",kind:"Practice match",need:"Beat the Rams in the Crow Spike story",ok:c=>c.best.dig>=15||story(c)>=1,f:25},
+  {opp:"Lakeside Herons",kind:"League",need:"Reach level 3 of the Volleyball IQ career",ok:c=>c.best.quiz>=5||((c.iq&&c.iq.lvl)||0)>=3,f:25},
+  {opp:"Northgate Wolves",kind:"League",need:"Beat the Wolves in the story",ok:c=>c.best.quick>=5||story(c)>=3,f:30},
+  {opp:"Harbor Sharks",kind:"League",need:"Score 15 in any training drill",ok:c=>c.best.serve>=10||["recv","spike","serve","block"].some(k=>drill(c,k)>=15),f:30},
   {opp:"Ironwood Bears",kind:"Cup, round 1",need:"Finish the daily camp on 2 days",ok:c=>campDays(c)>=2,f:40},
   {opp:"Summit Falcons",kind:"Cup quarter-final",need:"Earn 6 badges",ok:c=>c.badges.length>=6,f:40},
-  {opp:"Cedar Point Lynx",kind:"Cup semi-final",need:"Score 40 in Dig Defence and 20 in Jump Serve",ok:c=>c.best.dig>=40&&c.best.serve>=20,f:50},
-  {opp:"Thunder Bay Eagles",kind:"Cup final",need:"Hit a streak of 12 in Freak Quick",ok:c=>c.best.quick>=12,f:60},
+  {opp:"Cedar Point Lynx",kind:"Cup semi-final",need:"Beat the Lynx in the story",ok:c=>(c.best.dig>=40&&c.best.serve>=20)||story(c)>=5,f:50},
+  {opp:"Thunder Bay Eagles",kind:"Cup final",need:"Beat the Eagles in the story",ok:c=>c.best.quick>=12||story(c)>=6,f:60},
   {opp:"The Kings of the Court",kind:"Nationals final",need:"Reach 60 in every skill on your skill chart",ok:c=>Math.min(...skills(c))>=60,f:100},
   /* the second season: the World Club Championship */
-  {opp:"Sendai Storm",kind:"World Club · pool",need:"Score 15 in Block Party",ok:c=>c.best.block>=15,f:60},
-  {opp:"Lisbon Navigators",kind:"World Club · pool",need:"Score 30 in Setter's Vision",ok:c=>c.best.setter>=30,f:60},
-  {opp:"Rio Sambas",kind:"World Club · pool",need:"Reach wave 6 in Dig Defence",ok:c=>st(c,"bestWave")>=6,f:60},
-  {opp:"Ankara Wolves",kind:"World Club · pool",need:"Score 30 in Jump Serve",ok:c=>c.best.serve>=30,f:60},
+  {opp:"Sendai Storm",kind:"World Club · pool",need:"Beat Sendai Storm in the story",ok:c=>c.best.block>=15||story(c)>=7,f:60},
+  {opp:"Lisbon Navigators",kind:"World Club · pool",need:"Win a match as the setter or the middle",ok:c=>c.best.setter>=30||((spk(c).roleWins||{}).SE|0)+((spk(c).roleWins||{}).MB|0)>=1,f:60},
+  {opp:"Rio Sambas",kind:"World Club · pool",need:"Score 25 in the Receive drill",ok:c=>st(c,"bestWave")>=6||drill(c,"recv")>=25,f:60},
+  {opp:"Ankara Wolves",kind:"World Club · pool",need:"Hit 25 aces",ok:c=>c.best.serve>=30||c.aces+car(c,"aces")>=25,f:60},
   {opp:"Milano Lions",kind:"Round of 16",need:"Get 15 right in a Lightning round of Volleyball IQ",ok:c=>c.best.lightning>=15,f:70},
-  {opp:"Krakow Hussars",kind:"Quarter-final",need:"Hit a streak of 15 in Freak Quick",ok:c=>c.best.quick>=15,f:80},
-  {opp:"Shanghai Dragons",kind:"Semi-final",need:"Complete 5 daily challenges",ok:c=>c.dailyN>=5,f:90},
-  {opp:"Belo Horizonte Hawks",kind:"World Club final",need:"Score 30 in Block Party and 60 in Setter's Vision",ok:c=>c.best.block>=30&&c.best.setter>=60,f:120},
-  {opp:"The All-Stars",kind:"Exhibition",need:"Score on National difficulty in all five arcade games",ok:c=>arcadeNational(c)>=5,f:120},
+  {opp:"Krakow Hussars",kind:"Quarter-final",need:"Beat the Hussars in the story",ok:c=>c.best.quick>=15||story(c)>=8,f:80},
+  {opp:"Shanghai Dragons",kind:"Semi-final",need:"Play the Daily 5 quiz on 5 days",ok:c=>c.dailyN>=5,f:90},
+  {opp:"Belo Horizonte Hawks",kind:"World Club final",need:"Win a Crow Spike tournament",ok:c=>(c.best.block>=30&&c.best.setter>=60)||(spk(c).trophies|0)>=1,f:120},
+  {opp:"The All-Stars",kind:"Exhibition",need:"Win 5 matches on National",ok:c=>arcadeNational(c)>=5||(spk(c).natWins|0)>=5,f:120},
   {opp:"Karasuno Legends",kind:"Legends match",need:"Reach 70 in every skill on your skill chart",ok:c=>Math.min(...skills(c))>=70,f:200}
 ];
 function give(c,[t,id]){if(t&&id&&!c.owned[t].includes(id))c.owned[t].push(id);}
@@ -476,8 +483,8 @@ const CHALLENGE=(VB.CROW_DATA&&VB.CROW_DATA.challenge)||[];
 const chalToday=()=>CHALLENGE.length?CHALLENGE[parseInt(hash("chal"+today()+who()),36)%CHALLENGE.length]:null;
 
 /* ---------- the Nest page ---------- */
-const TABS=[["card","Player card"],["dig","Dig Defence"],["quick","Freak Quick"],["serve","Jump Serve"],["block","Block Party"],["setter","Setter's Vision"],["iq","Volleyball IQ"],["camp","Training camp"],["season","Season"],["badges","Badges and shop"],["style","Style"]];
-const ARCADE=["dig","quick","serve","block","setter"];
+const TABS=[["card","Player card"],["spike","Crow Spike"],["iq","Volleyball IQ"],["camp","Training camp"],["season","Season"],["badges","Badges and shop"],["style","Style"]];
+const ARCADE=[],OLDGAMES=["dig","quick","serve","block","setter"];
 /* the Nest's helpers, handed to the arcade engine */
 const KIT={C:()=>C(),G:()=>G(),ME:()=>ME(),who:()=>who(),save:()=>save(),award:n=>award(n),sfx:(k,a)=>sfx(k,a),perks:()=>perks(),checkBadges:()=>checkBadges(),refreshStats:()=>refreshStats(),
   crowAt:(...a)=>crowAt(...a),crestSvg:(c,w)=>crestSvg(c,w),perchSvg:c=>perchSvg(c),featherAt:(...a)=>featherAt(...a),isNest:()=>isNest(),reduced:()=>reduced(),today:()=>today(),hash:x=>hash(x),col:()=>ORANGE,rgb:()=>ME().col.rgb};
@@ -485,7 +492,7 @@ if(VB.crowArcade)VB.crowArcade.K=KIT;
 let tab=null,loopOn=false,game=null,bgFx=null,quiz=null,skipBoot=false;
 const isNest=()=>{const v=$("#v-nest");return v&&!v.hidden;};
 function render(sub){const host=$("#v-nest");if(!host)return;if(!on()){location.hash="#profile";return;}
-  const p=ME();if(sub&&TABS.some(t=>t[0]===sub))tab=sub;if(!tab)tab=p.focus==="att"?"quick":"dig";const c=C(),pr=VB.state.profile||{},parts=p.name.toUpperCase().split(/\s+/);
+  const p=ME();if(sub&&OLDGAMES.includes(sub))sub="spike";if(sub&&TABS.some(t=>t[0]===sub))tab=sub;if(!tab)tab="spike";const c=C(),pr=VB.state.profile||{},parts=p.name.toUpperCase().split(/\s+/);
   stopGame();
   host.innerHTML=`<div class="nhero"><canvas class="nfx" aria-hidden="true"></canvas><div class="nbig" aria-hidden="true">${esc(p.big)}</div>
     <div class="wrap nhwrap"><div class="nkick">${perchSvg("nk")}<span>${esc(p.edition)} · Crow's Nest</span></div>
@@ -503,10 +510,12 @@ function refreshStats(){const el=$("#nStats");if(!el)return;const c=C(),nm=ROAD[
   const t=$("#nTitle");if(t)t.textContent=titleText()||ME().tag;renderCodeCard();}
 function gameHead(k,title,best,desc){return `<div class="ngh"><div><div class="kicker">Mini-game</div><h3>${title}</h3><p class="small muted">${desc}</p></div><div class="ngbest">Best <b>${best}</b></div></div>`;}
 function campStreak(c){let n=0;const d=new Date();if(((c.camp[today()]||[]).length)<3)d.setDate(d.getDate()-1);for(;;){const k=VB.iso?VB.iso(d):d.toISOString().slice(0,10);if((c.camp[k]||[]).length>=3){n++;d.setDate(d.getDate()-1);}else break;}return n;}
-function records(c){const A=VB.crowArcade;if(!A)return "";const ms=Object.keys(A.MODES);
-  return `<div class="card"><div class="kicker">Arcade records</div><table class="arec"><thead><tr><th>Game</th>${ms.map(m=>`<th>${A.MODES[m].label}</th>`).join("")}<th>Best</th></tr></thead><tbody>${ARCADE.map(id=>{const G=A.games[id];if(!G)return "";const b=(c.bestM&&c.bestM[id])||{};
-    return `<tr><td>${esc(G.title)}</td>${ms.map(m=>`<td>${b[m]||"–"}</td>`).join("")}<td><b>${G.bestOf(c)||0}</b></td></tr>`;}).join("")}</tbody></table>
-    <p class="small muted">Daily challenges done: <b>${c.dailyN}</b>. Today's: ${(()=>{const d=A.daily();return d?`${esc(d.title)}, ${esc(d.text)}${c.daily[d.day]?" ✓":""}`:"none";})()}.</p></div>`;}
+function records(c){const k=spk(c),cr=k.career||{},d=k.drills||{};
+  return `<div class="card"><div class="kicker">Crow Spike career</div><table class="arec"><tbody>
+    <tr><td>Matches</td><td><b>${k.matches|0}</b></td><td>Wins</td><td><b>${k.wins|0}</b></td></tr><tr><td>Story</td><td><b>${k.story|0}/10</b></td><td>Trophies</td><td><b>${k.trophies|0}</b></td></tr>
+    <tr><td>Kills</td><td><b>${cr.kills|0}</b></td><td>Aces</td><td><b>${cr.aces|0}</b></td></tr><tr><td>Stuff blocks</td><td><b>${cr.blocks|0}</b></td><td>Digs</td><td><b>${cr.digs|0}</b></td></tr>
+    <tr><td>Perfect receives</td><td><b>${cr.perfect|0}</b></td><td>Fastest</td><td><b>${cr.top|0} km/h</b></td></tr></tbody></table>
+    <p class="small muted">Drill bests: receive <b>${d.recv|0}</b> · spike <b>${d.spike|0}</b> · serve <b>${d.serve|0}</b> · block <b>${d.block|0}</b>.</p></div>`;}
 function radar(c){const v=skills(c),n=v.length,R=110,cx=150,cy=140,pt=(i,r)=>[cx+Math.sin(i/n*Math.PI*2)*r,cy-Math.cos(i/n*Math.PI*2)*r];
   const ring=k=>v.map((_,i)=>pt(i,R*k).join(",")).join(" ");
   return `<svg class="radar" viewBox="0 0 300 290" role="img" aria-label="Skill chart: ${SKILLS.map(([l],i)=>l+" "+v[i]).join(", ")}">
@@ -515,9 +524,9 @@ function radar(c){const v=skills(c),n=v.length,R=110,cx=150,cy=140,pt=(i,r)=>[cx
     <polygon points="${v.map((s,i)=>pt(i,R*Math.max(.04,s/100)).join(",")).join(" ")}" fill="${rgbA(.35)}" stroke="var(--cra)" stroke-width="2.5"/>
     ${SKILLS.map(([l],i)=>{const [x,y]=pt(i,R+22);return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${esc(l)} <tspan>${v[i]}</tspan></text>`;}).join("")}</svg>`;}
 function panel(){const P=$("#nPanel");if(!P)return;stopGame();$$("[data-nt]").forEach(b=>b.setAttribute("aria-selected",b.dataset.nt===tab));const c=C(),p=ME();
-  if(ARCADE.includes(tab)){game=VB.crowArcade?VB.crowArcade.mount(P,tab,KIT):null;}
+  if(tab==="spike"){game=VB.crowSpike&&VB.crowSpike.mount?VB.crowSpike.mount(P,KIT):null;}
   else if(tab==="card"){playerCard(P);}
-  else if(tab==="iq"){quizMenu(P);}
+  else if(tab==="iq"){game=VB.crowIQ?VB.crowIQ.mount(P,KIT,QUIZ):null;}
   else if(tab==="camp"){const qs=campToday(),done=c.camp[today()]||[],days=[];for(let i=13;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=VB.iso?VB.iso(d):d.toISOString().slice(0,10);days.push([k,(c.camp[k]||[]).length]);}
     P.innerHTML=`<div class="ncamp"><div class="ngh"><div><div class="kicker">Today's camp · ${p.focus==="att"?"attack":p.focus==="mix"?"all-round":"defence"} focus</div><h3>Three jobs for ${esc(p.job||"a crow")}</h3><p class="small muted">New jobs every day: two for your focus, one for everyone. Tick each one when you've done it: 15 feathers each, and a 20 feather bonus for all three. Dives and sprawls go on a mat or grass, never a hard floor.</p></div></div>
       <div class="camprow">${qs.map(q=>{const d=done.includes(q.id);return `<button type="button" class="cq ${d?"done":""}" data-cq="${q.id}" aria-pressed="${d}"><span class="cqk">${d?"Done":"To do"}</span><b>${esc(q.t)}</b><span>${esc(q.d)}</span><small>${esc(q.x)}</small></button>`;}).join("")}</div>
@@ -525,7 +534,7 @@ function panel(){const P=$("#nPanel");if(!P)return;stopGame();$$("[data-nt]").fo
       <p class="small muted">Camp streak: <b>${campStreak(c)}</b> day${campStreak(c)===1?"":"s"} in a row · ${Object.keys(c.chal).length} challenge drill${Object.keys(c.chal).length===1?"":"s"} done.</p>
       <div class="cweek"><span class="stat">Last 14 days</span><div>${days.map(([k,n])=>`<i class="${n>=3?"full":n?"part":""}" title="${k}: ${n}/3"><span>${["S","M","T","W","T","F","S"][new Date(k+"T12:00").getDay()]}</span></i>`).join("")}</div></div></div>`;}
   else if(tab==="season"){const wk=weekKey(),g=c.goal.week===wk?c.goal:{};
-    P.innerHTML=`<div class="nseason"><div class="stack" style="gap:16px"><div class="card"><div class="kicker">Skill chart</div><p class="small muted">Built from your best scores: Receive (Dig Defence), Attack (Freak Quick), Serve (Jump Serve), IQ (the quiz), Grit (camp days) and Energy (games played and big calls).</p>${radar(c)}</div>
+    P.innerHTML=`<div class="nseason"><div class="stack" style="gap:16px"><div class="card"><div class="kicker">Skill chart</div><p class="small muted">Built from Crow Spike (your career and drill bests), the Volleyball IQ quiz, camp days (Grit) and games played (Energy).</p>${radar(c)}</div>
       ${records(c)}<div class="card"><div class="kicker">This week's goal</div><p class="small muted">Write one thing you'll do this week. Tick it when it's done: 30 feathers.</p>
         ${g.done?`<p class="goaldone">✓ ${esc(g.text)}</p>`:`<form class="row" id="nGoalForm"><input class="in" id="nGoalIn" maxlength="120" placeholder="e.g. 100 wall passes in a row" value="${esc(g.text||"")}" aria-label="This week's goal" style="flex:1;min-width:0"><button class="btn sm" type="submit">Save</button></form>${g.text?`<div class="row"><button class="btn primary sm" type="button" id="nGoalDone">I did it</button></div>`:""}`}</div></div>
       <div class="road"><div class="kicker">Season road</div><h3>${c.road.length>=ROAD.length?"World champions!":c.road.length>=10?"The World Club Championship":"Win your way to Nationals"}</h3><ol>${ROAD.map((m,i)=>{const s2=i<c.road.length?"won":i===c.road.length?"next":"later";
