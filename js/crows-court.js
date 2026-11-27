@@ -176,10 +176,10 @@ const P=C.POSES={
   dig:{tor:.4,hd:-.55,u1:1.35,f1:1.45,u2:1.35,f2:1.45,t1:.8,s1:-.4,t2:.25,s2:-.5},
   dive:{tor:.12,hd:-.9,u1:2.75,f1:2.8,u2:2.7,f2:2.75,t1:-.1,s1:-.35,t2:.08,s2:-.12},
   load:{tor:.6,hd:-.2,u1:-.9,f1:-.6,u2:-1,f2:-.7,t1:1.0,s1:-.6,t2:.8,s2:-.65},
-  rise:{tor:-.08,hd:.2,u1:2.75,f1:2.95,u2:2.45,f2:2.6,t1:-.15,s1:-.6,t2:.25,s2:-.25},
-  cock:{tor:-.3,hd:.35,u1:2.55,f1:2.95,u2:2.6,f2:4.1,t1:-.35,s1:-.9,t2:.15,s2:-.5},
-  swing:{tor:.38,hd:-.1,u1:.6,f1:.5,u2:2.75,f2:2.7,t1:.3,s1:-.3,t2:.55,s2:.1},
-  follow:{tor:.55,hd:-.25,u1:.4,f1:.6,u2:.75,f2:.55,t1:.45,s1:-.25,t2:.6,s2:.15},
+  rise:{tor:-.1,hd:.2,u1:2.75,f1:2.95,u2:2.5,f2:2.7,t1:.05,s1:-.95,t2:.45,s2:-.55},
+  cock:{tor:-.42,hd:.4,u1:2.45,f1:2.85,u2:2.75,f2:4.3,t1:-.3,s1:-1.45,t2:.05,s2:-1.15},
+  swing:{tor:.45,hd:-.15,u1:.45,f1:.4,u2:2.6,f2:2.55,t1:.55,s1:-.25,t2:.8,s2:-.05},
+  follow:{tor:.62,hd:-.3,u1:.35,f1:.6,u2:.55,f2:.3,t1:.55,s1:-.45,t2:.75,s2:-.25},
   tip:{tor:.05,hd:.3,u1:1.0,f1:.8,u2:2.9,f2:3.05,t1:.05,s1:-.4,t2:.2,s2:-.1},
   block:{tor:.02,hd:.15,u1:2.95,f1:2.95,u2:3.0,f2:3.0,t1:.02,s1:-.08,t2:-.02,s2:-.1},
   press:{tor:.12,hd:.1,u1:2.62,f1:2.5,u2:2.68,f2:2.55,t1:-.08,s1:-.2,t2:-.12,s2:-.22},
@@ -240,7 +240,7 @@ function fk(p){const c0=p.cur,o=p.off,L=SEG,s=Math.sin,c=Math.cos,q=o?{}:c0;if(o
   if(p.rot){const cr=Math.cos(p.rot),sr=Math.sin(p.rot);Object.keys(pts).forEach(k=>{const [x,y]=pts[k];pts[k]=[x*cr-y*sr,x*sr+y*cr];});}
   pts.ha=ha+(p.rot||0);
   let low=Math.max(pts.f1[1],pts.f2[1]);if(p.rot>.5)low=Math.max(low,pts.h1[1],pts.h2[1],pts.hd[1]+.12,pts.k1[1]+.06,pts.k2[1]+.06);
-  pts.hipH=low+.05;return pts;}
+  pts.hipH=p.air&&!(p.rot>.5)?Math.max(low+.05,.97):low+.05;return pts;}
 C.fk=fk;
 C.joint=(p,name)=>{const s=fk(p),[lx,ly]=s[name],sc=p.scale;return [p.x+p.f*lx*sc,p.y+(s.hipH-ly)*sc];};
 C.hipY=p=>p.y+fk(p).hipH*p.scale;
@@ -338,7 +338,7 @@ C.ours=(o)=>Object.assign({col:A.K.col(),numCol:"#141217",shorts:"#141217",hair:
 C.theirs=(o)=>Object.assign({col:"#e8ecf2",col2:"#b9c3d2",numCol:"#1f3b73",shorts:"#1f3b73",hair:"#2a1d14",skin:"#c99673",shoe:"#20283a"},o||{});
 
 /* ---------- player physics ---------- */
-C.PG=17;/* athletes fall faster than the ball: snappy jumps */
+C.PG=15.5;/* athletes fall faster than the ball: snappy jumps */
 /* run toward a target speed with acceleration; in the air there is only a little control */
 C.run=(p,dir,dt,o)=>{o=o||{};const max=o.max||6,acc=p.air?(o.airAcc||4):(o.acc||38);const tv=dir*max;p.vx+=clamp(tv-p.vx,-acc*dt,acc*dt);if(dir)p.f=o.face||p.f;};
 C.jump=(p,v,carry)=>{if(p.air)return false;p.air=true;p.vy=v;p.vx*=carry==null?.6:carry;return true;};

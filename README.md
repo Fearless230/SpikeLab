@@ -62,7 +62,15 @@ Import the repository at vercel.com (**Add New → Project**), keep the framewor
 1. Run **`node tools/release.mjs --site https://<your-username>.github.io/<repository-name>/`** (Node 18 or newer, nothing to install). It bumps `VERSION` in `sw.js` so phones pick up the new files, lists every file in `CORE` for offline use, updates the Content-Security-Policy hash in `index.html`, and makes the share-preview image address absolute so link previews show it. `node tools/release.mjs --check` changes nothing and fails if something is out of date.
 2. If `supabase/schema.sql` changed, **run it again** in Supabase > SQL Editor. It is safe to re-run.
 
-### This release (v10.2): spike effects
+### This release (v10.3): higher, easier, harder-hitting
+- **Higher jumps:** about 60% more height and longer hang time, so hitters rise well above the net. Blockers jump higher too.
+- **Higher, floatier sets:** sets carry backspin and float down slower, and high outside sets go about a third higher, so there's time to approach.
+- **Easier to hit:** a wider hit window and a bigger perfect zone. When a set is coming to you, a ring on the floor closes onto your feet and flashes JUMP! at the right moment. On Rookie and Varsity your feet carry you to the take-off spot unless you steer yourself, and on Rookie you jump automatically, so you only time the spike.
+- **Better spike animation:** a load crouch, legs tucking on the rise, the arm drawing back on its own near the top of the jump, a whip to contact, then follow-through and a deep landing. Computer hitters take a full approach.
+- **Faster spikes:** harder base speed, and timing matters much more (perfect contact adds up to about 40 km/h). Three perfect spikes in a row puts you **On Fire** (a glow and 8% more speed) until you miss the sweet spot.
+- **Fairer calls:** a hard spike that a defender shanks out of bounds now counts as a kill for the hitter, not an "OUT!".
+
+### Earlier (v10.2): spike effects
 - **Tiered spike effects:** every spike gets a star glint where the hand meets the ball, a ring of air and a few sparks. Perfect timing or a hard hit adds streaks that ride behind the ball and spin arcs. The big theatrics (lightning that follows the ball and strikes the floor, a lens flare, a brief impact frame) are kept for the Thunder Spike.
 - **Floor impact:** shockwave rings across the floor, sparks, and cracks under the hardest kills. Your perfect kills land in a short slow-motion beat.
 - **Iron Wall** shows a hexagon shield on a stuff block.

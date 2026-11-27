@@ -46,9 +46,9 @@ const sdOf=t=>t===0?-1:1;                 /* which side: team 0 plays on the lef
 const wx=(t,d)=>d*sdOf(t);                /* a depth on a team's side (0 at the net, 9 at their end line) to world x */
 const ld=(t,x)=>x*sdOf(t);                /* world x to that team's depth (negative: the other side) */
 const faceOf=t=>-sdOf(t);                 /* players face the net */
-const derive=p=>{const s=p.st;return {run:4.5+s.spd*.22,jv:4.95+s.jmp*.085,reach:(p.h-190)*.006,pow:s.atk,def:s.def,srv:s.srv,set:s.set};};
+const derive=p=>{const s=p.st;return {run:4.5+s.spd*.22,jv:6.05+s.jmp*.1,reach:(p.h-190)*.006,pow:s.atk,def:s.def,srv:s.srv,set:s.set};};
 const apexOf=jv=>jv*jv/(2*C.PG);
-const SUB=.008,DIP=5,SDIP=7;
+const SUB=.008,DIP=5,SDIP=7,BJ=5.5,SETG=3.4,HW=.72;/* block jump speed, set backspin (lighter gravity), hit window */
 /* perks from the player card's grades (Technique, Power, Game sense, Stamina) */
 const perk=k=>{try{const p=A.K.perks();return k==="win"?p.win:k==="power"?1+(p.power-1)*.25:k==="fill"?p.fill:k==="dur"?p.dur:1;}catch(e){return 1;}};
 /* mirror a calculation done from the left side for a team on the right */
@@ -96,7 +96,7 @@ function pointTo(M,w,why,o){if(M.phase!=="live"&&M.phase!=="serve")return;o=o||{
   const L=M.teams[1-w];M.score[w]++;M.streak[w]++;M.streak[1-w]=0;
   if(w!==M.serveT){M.serveT=w;M.teams[w].serveIdx++;}
   /* credit */const lp=M.lastP;let big=false,tag=why;
-  if(o.kind==="kill"&&o.p){o.p.stats.kills++;o.p.stats.pts++;if(o.set)o.set.stats.assists++;big=o.v>16.5||o.pw;}
+  if(o.kind==="kill"&&o.p){o.p.stats.kills++;o.p.stats.pts++;if(o.set)o.set.stats.assists++;big=o.v>19||o.pw;}
   if(o.kind==="ace"&&o.p){o.p.stats.aces++;o.p.stats.pts++;big=true;}
   if(o.kind==="block"&&o.p){o.p.stats.blocks++;o.p.stats.pts++;big=true;}
   if(o.kind==="err"&&o.p){o.p.stats.err++;}
@@ -146,10 +146,10 @@ function freeOver(M,p,q){const b=M.ball,t=p.t,d=rand(2.5,7.5),T=1.15;const v=C.t
 /* the setter picks a hitter and sets. who: player to set, tempo "quick" | "shoot" | "high" | "pipe" */
 function setBall(M,p,who,tempo,q,spec){const b=M.ball,t=p.t,f=faceOf(t);if(!who||who===p){freeOver(M,p,q);return;}
   const k=1+(p.st.set-5)*.03,qq=clamp(q,0,1);
-  const D={quick:[.55,.44],shoot:[.78,.74],high:[.95,1.18],pipe:[3.5,.98]}[tempo]||[.95,1.18];
+  const D={quick:[.55,.52],shoot:[.78,.88],high:[.95,1.52],pipe:[3.5,1.3]}[tempo]||[.95,1.52];
   const jv=who.k.jv,cy=2.06+apexOf(jv)+who.k.reach-.02,err=(1-qq)*rand(-.6,.6);
   const cp=[wx(t,clamp(D[0]+err,.35,4)),cy+(1-qq)*rand(-.25,.1)],T=D[1]/k*(qq<.5?1.15:1);
-  const v=C.throwT([b.x,b.y],cp,T);b.dip=0;b.float=0;b.vx=v[0];b.vy=v[1];b.spin=2;b.heat=0;b.live=true;b.netDone=true;b.held=false;
+  const v=C.throwT([b.x,b.y],cp,T,C.G-SETG);b.dip=-SETG;b.float=0;b.vx=v[0];b.vy=v[1];b.spin=-3*f;b.heat=0;b.live=true;b.netDone=true;b.held=false;
   afterTouch(M,p,true);p.stats.setsMade=(p.stats.setsMade||0)+1;
   M.attack={p:who,setter:p,cp,tc:M.time+T,tempo,q:qq,spec:!!spec,t};
   if(who.human&&!SP.autoplay){who.human.ghost={x:cp[0],y:cp[1],t0:M.time,tc:M.time+T};}
@@ -174,15 +174,16 @@ function attack(M,p,kind,aim,q,pw,want){const b=M.ball,t=p.t,F=SP.F,hx=b.x,hy=b.
   /* in local coordinates of a left-side hitter */
   const lx=mx(t,hx);
   if(kind!=="spike"){const T=kind==="roll"?1.05:.8;const dd=kind==="roll"?rand(6,8.4):rand(.9,2.2)+(1-q)*rand(-.4,.6);tx=wx(o,dd);const vv=C.throwT([hx,hy],[tx,C.BR],T);b.dip=0;b.vx=vv[0];b.vy=vv[1];v=Math.hypot(...vv);b.spin=4;b.heat=0;}
-  else{v=(13.4+p.st.atk*.55+3.6*q+clamp((hy-2.95)*4,-1.2,1.4))*(pw?1.28:1)*(p.human&&!M.cfg.versus?perk("power"):1);if(pw)v=Math.max(v,21);
+  else{v=(14.6+p.st.atk*.6+5.4*q*q+clamp((hy-3.25)*4,-1.2,1.6))*(pw?1.3:1)*(p.human&&!M.cfg.versus?perk("power"):1)*(p.fire?1.08:1);if(pw)v=Math.max(v,24);
     const g=C.G+DIP,lo=clamp(C.clearX([lx,hy],v,g,.16),1.2,7.6),base=want!=null?clamp(want,lo+.2,8.3):aim<0?lo+rand(0,.5):aim>0?clamp(Math.max(lo+2.2,rand(7.2,8.2)),lo,8.4):clamp(Math.max(lo+1.4,rand(4.4,5.6)),lo,7.4);
     const dd=base+(1-q)*rand(-1.5,1.2)+(aim>0?(1-q)*.8:0);tx=wx(o,dd);
-    let vv=C.solve([lx,hy],[dd,C.BR],v,false,g);if(!vv)vv=C.throwT([lx,hy],[dd,C.BR],Math.abs(dd-lx)/(v*.85),g);b.dip=DIP;b.vx=t===0?vv[0]:-vv[0];b.vy=vv[1];b.spin=-24*(t===0?1:-1);b.heat=pw?1.4:v>17?1:v>15.5?.6:.25;}
+    let vv=C.solve([lx,hy],[dd,C.BR],v,false,g);if(!vv)vv=C.throwT([lx,hy],[dd,C.BR],Math.abs(dd-lx)/(v*.85),g);b.dip=DIP;b.vx=t===0?vv[0]:-vv[0];b.vy=vv[1];b.spin=-24*(t===0?1:-1);b.heat=pw?1.4:p.fire||v>20?1:v>18?.6:.25;}
   b.live=true;b.netDone=false;b.float=0;b.held=false;b.t=0;SP.L&&SP.L(M,"ATTACK",p.t+p.role,kind,"aim"+aim,"q"+q.toFixed(2),"v"+v.toFixed(1),"tx"+(tx||0).toFixed(1),"from"+hx.toFixed(1)+","+hy.toFixed(1),"land"+((C.land(b)||{}).x||0).toFixed(1));
   M.shot={p,kind,aim,q,v,pw,t,setter:M.attack&&M.attack.setter,blocked:false,time:M.time};M.attack=null;p.stats.att++;p.stats.top=Math.max(p.stats.top,C.kmh(v));if(kind!=="spike")p.stats.tips++;
   afterTouch(M,p,false);
-  C.pose(p.a,kind==="spike"?"swing":"tip",45);
-  if(kind==="spike"){const perfect=q>=.78,hard=v>16.5,col=pw?"255,211,77":perfect?(t===0?accRgb():"200,225,255"):"255,255,255",ang=Math.atan2(b.vy,b.vx);
+  C.pose(p.a,kind==="spike"?"swing":"tip",65);p.a.followAt=M.time+.11;
+  if(kind==="spike"&&p.human&&!SP.autoplay){p.streak=q>=.78?(p.streak|0)+1:0;const was=p.fire;p.fire=p.streak>=3;if(p.fire&&!was){F.pop(cam.X(hx),cam.Y(hy)-100,"ON FIRE!",{col:"#ff9a3c",size:34,sub:"Three perfect spikes: your hits burn hotter"});SP.sfx("power");}}
+  if(kind==="spike"){const perfect=q>=.78,hard=v>19,col=pw?"255,211,77":perfect?(t===0?accRgb():"200,225,255"):"255,255,255",ang=Math.atan2(b.vy,b.vx);
     /* every spike: a glint where the hand meets the ball, a ring of air, a few sparks off the palm */
     fx(M,"glint",{x:hx,y:hy,col,size:pw?1.7:perfect?1.2:.8,rot:rand(-.4,.4)});fx(M,"ripple",{x:hx,y:hy,col:perfect||pw?col:"255,255,255",r:pw?1.9:perfect?1.3:.9});
     sparks(M,hx,hy,pw?12:perfect?7:3,pw?"255,211,77":perfect?col:"255,240,220",7,ang,.6);
@@ -201,7 +202,7 @@ function scheduleBlock(M,t,att){if(M.cfg.drill==="recv"&&t===0)return;const T=M.
   T.players.forEach(p=>{p.blk=null;if(p.human)return;const dn=Math.abs(ld(t,p.a.x));const mb=p.role==="MB",front=dn<2.2;
     if(!mb&&!(front&&att.tempo==="high"&&p.role==="SE"))return;
     /* a good block jumps so its hands peak as the hitter swings; a worse one is late or early */
-    const jt=att.tc-(4.4/C.PG)+tempoLate/sk+rand(-.12,.12)/sk;p.blk={at:jt,x:wx(t,.42)};});}
+    const jt=att.tc-(BJ/C.PG)+tempoLate/sk+rand(-.12,.12)/sk;p.blk={at:jt,x:wx(t,.42)};});}
 function blockCheck(M,dt){const b=M.ball,sh=M.shot;if(!sh||sh.blocked||!b.live)return;const o=1-sh.t,plane=wx(o,.22),px=b.x-b.vx*dt;
   if(!((ld(o,px)<.22)&&(ld(o,b.x)>=.22)))return;
   for(const p of M.teams[o].players){if(!p.a.air||Math.abs(ld(o,p.a.x))>.95)continue;const iron=p.iron&&M.time<p.iron,top=C.joint(p.a,"h2")[1]+.07+(iron?.25:0)+p.k.reach*.5;
@@ -238,11 +239,11 @@ function planNext(M){M.plan=null;const b=M.ball;if(!b.live||M.phase!=="live")ret
   M.plan={type:bump?"bumpset":want,p,T,x,h,tc:M.time+t,made:M.time};SP.L&&SP.L(M,"plan",M.plan.type,p.t+p.role,"x"+x.toFixed(1),"in"+t.toFixed(2),"px"+p.a.x.toFixed(1));}
 
 /* ---------- a scripted spiker (any AI hitter): runs in, jumps so the swing meets the set ---------- */
-function scriptStep(M,p){const o=p.script,at=M.time,JT=o.jv/C.PG,tj=o.tc-JT,ta=tj-.5,land=tj+2*JT,f=o.f,a=p.a;a.f=f;
+function scriptStep(M,p){const o=p.script,at=M.time,JT=o.jv/C.PG,tj=o.tc-JT,ta=tj-.72,land=tj+2*JT,f=o.f,a=p.a;a.f=f;
   const runX=t=>t<=ta?o.x0:t>=tj?o.xt:lerp(o.x0,o.xt,ease.inOut((t-ta)/(tj-ta)));
-  if(at<tj){a.air=false;a.y=0;a.x=runX(at);a.vx=(runX(at+.02)-runX(at))/.02;C.pose(a,at>tj-.13?"load":"ready",at>tj-.13?28:14);return;}
+  if(at<tj){a.air=false;a.y=0;a.x=runX(at);a.vx=(runX(at+.02)-runX(at))/.02;C.pose(a,at>tj-.17?"load":"ready",at>tj-.17?30:14);return;}
   if(at<land){const t=at-tj;a.air=true;a.y=Math.max(0,o.jv*t-.5*C.PG*t*t);a.x=o.xt+f*.5*t;a.vx=0;
-    if(at<o.tc-.17)C.pose(a,"rise",18);else if(at<o.tc)C.pose(a,o.tip?"tip":"cock",30);else if(at<o.tc+.16)C.pose(a,o.tip?"tip":"swing",40);else C.pose(a,"follow",14);
+    if(at<o.tc-.3)C.pose(a,"rise",22);else if(at<o.tc-.03)C.pose(a,o.tip?"tip":"cock",26);else if(at<o.tc+.13)C.pose(a,o.tip?"tip":"swing",65);else C.pose(a,"follow",14);
     if(!o.done&&at>=o.tc){o.done=true;aiSwing(M,p);}return;}
   a.air=false;a.y=0;a.vx=0;p.script=null;C.pose(a,"low",12);p.poseT=.15;}
 /* the AI hitter's swing: where to hit it */
@@ -250,7 +251,7 @@ function aiSwing(M,p){const b=M.ball,f=faceOf(p.t),hand=[p.a.x+f*.42,C.hipY(p.a)
   if(!att||att.p!==p||d>.85||ld(p.t,b.x)<-.1){M.attack=null;M.plan=null;return;}
   const T=M.teams[p.t],o=M.teams[1-p.t],sk=T.sk;let q=clamp(.5+.035*p.st.atk+.25*att.q+(sk-1)*.25+rand(-.18,.14)-Math.max(0,d-.4)*.3,0,1);
   /* read their block: is a blocker up in time? */
-  const up=o.players.some(x=>x.blk&&Math.abs(M.time-(x.blk.at+4.4/C.PG))<.14)||o.players.some(x=>x.human&&x.a.air&&Math.abs(ld(o.t,x.a.x))<1);
+  const up=o.players.some(x=>x.blk&&Math.abs(M.time-(x.blk.at+BJ/C.PG))<.14)||o.players.some(x=>x.human&&x.a.air&&Math.abs(ld(o.t,x.a.x))<1);
   let kind="spike",aim=0,want=null;
   if(up&&Math.random()<.5*sk){if(Math.random()<.5)kind=Math.random()<.5?"tip":"roll";else aim=1;}
   else{/* the gap in their defence: the spot furthest from anyone who can dig, not too close to the end line */const ds=o.players.filter(x=>!x.a.air).map(x=>ld(o.t,x.a.x)-.42);let bd=-1;
@@ -268,7 +269,7 @@ function aiStep(M,p,dt){const a=p.a,f=faceOf(p.t),T=M.teams[p.t],sk=T.sk;
   if(p.dive>0){p.dive+=dt;a.vx=damp(a.vx,0,3.2,dt);a.rot=damp(a.rot,1.3,18,dt);if(p.dive>.55){p.dive=0;p.down=.38;C.pose(a,"low",8);}return;}
   if(a.air){if(a.pose!=="block"&&a.pose!=="press"&&a.pose!=="slump")C.pose(a,"block",30);return;}
   /* a block jump */
-  if(p.blk&&M.time>=p.blk.at&&M.time<p.blk.at+.15&&Math.abs(a.x-p.blk.x)<.7){a.air=true;a.vy=4.4+(p.st.jmp-5)*.06;a.vx=0;C.pose(a,"block",30);p.blk=null;return;}
+  if(p.blk&&M.time>=p.blk.at&&M.time<p.blk.at+.15&&Math.abs(a.x-p.blk.x)<.7){a.air=true;a.vy=BJ+(p.st.jmp-5)*.06;a.vx=0;C.pose(a,"block",30);p.blk=null;return;}
   let goal=p.goal,v=p.k.run*(.86+.14*sk);const pl=M.plan;
   if(M.phase==="live"){
     const sh=M.shot,react=sh&&sh.t!==p.t&&M.time-sh.time<(.26-.012*p.st.def)/sk;
@@ -295,7 +296,7 @@ function aiContact(M){const pl=M.plan;if(!pl||pl.type==="attack"||pl.type==="lea
     const hot=sh&&sh.pw&&M.lastP===sh.p;if(hot&&q<.92){q=.1;SP.F.pop(M.cam.X(b.x),M.cam.Y(b.y)-40,"TOO HOT!",{col:"#ffd34d",size:30});}
     if(b.float>0)q-=.1;
     /* a hard, clean spike straight at the defence beats them more often than not on a bad read */
-    if(!hot&&sh&&sh.kind==="spike"&&M.lastP===sh.p&&!sh.blocked&&Math.random()<clamp((inc-13.5)*.09,0,.55)*(1.2-.04*p.st.def)/sk)q=Math.min(q,.04);
+    if(!hot&&sh&&sh.kind==="spike"&&M.lastP===sh.p&&!sh.blocked&&Math.random()<clamp((inc-15.5)*.08,0,.55)*(1.2-.04*p.st.def)/sk)q=Math.min(q,.04);
     M.lastPassQ=q;
     if(pl.type==="free"){freeOver(M,p,q);if(!p.human)C.pose(a,"dig",40);return;}
     if(pl.type==="bumpset"){const T=M.teams[p.t],hs=T.players.filter(x=>x!==p&&!x.a.air&&x.down<=0);const who=hs.find(x=>x.human&&!SP.autoplay&&x.role!=="SE")||hs.find(x=>x.role==="WS")||hs[0];setBall(M,p,who,"high",clamp(q-.25,0,1),false);C.pose(a,"dig",40);p.poseT=.3;return;}
@@ -315,26 +316,32 @@ function humanStep(M,p,dt){const P=p.human.pad,a=p.a,f=faceOf(p.t),F=SP.F;C.tick
     const overhead=ballOverhead(M,p);
     if(C.take(P,"c",.15)){if(overhead&&M.tt===p.t){dump(M,p);return;}const d=dir||(M.ball.live&&M.ball.x<a.x?-1:1);p.dive=.01;p.rec=-1;a.f=d;a.vx=d*(7.6+p.st.spd*.12);C.pose(a,"dive",22);SP.sfx("whoosh");return;}
     if(p.recCool<=0&&C.take(P,"b",.14)){p.rec=0;C.pose(a,overhead?"set":"platform",30);}
-    if(C.take(P,"a",.14)){const block=M.tt!==p.t&&Math.abs(ld(p.t,a.x))<1.7;C.jump(a,block?4.3+p.st.jmp*.05:p.k.jv,block?.2:.55);p.jumpX=a.x;p.swung=false;p.blockJump=block;C.pose(a,block?"block":"rise",24);SP.sfx("jump");return;}
+    if(C.take(P,"a",.14)){const block=M.tt!==p.t&&Math.abs(ld(p.t,a.x))<1.7;C.jump(a,block?BJ-.2+p.st.jmp*.04:p.k.jv,block?.2:.55);p.jumpX=a.x;p.swung=false;p.blockJump=block;C.pose(a,block?"block":"rise",24);SP.sfx("jump");return;}
     if(p.rec>=0){p.rec+=dt;if(p.rec>.55){p.rec=-1;C.pose(a,"ready",14);}}
-    const max=(p.rec>=0?2.4:p.k.run)*(dir*f<0?.86:1);C.run(a,dir,dt,{max,acc:42,face:f});if(!dir)a.vx=damp(a.vx,0,14,dt);a.f=f;
+    /* a set is coming to you: the jump cue, and on Rookie/Varsity your feet carry you to the take-off spot (any arrow key takes over) */
+    const att=M.attack,mine=att&&att.p===p&&p.rec<0&&!M.cfg.versus&&M.time<att.tc+.2;p.cue=mine?att.tc-p.k.jv/C.PG:null;
+    if(mine&&!dir&&M.cfg.diff!=="national"&&M.time<p.cue){const xt=att.cp[0]-f*.5;C.goTo(a,xt,p.k.run*1.05,dt,f);a.x+=a.vx*dt;a.f=f;
+      if(M.cfg.diff==="rookie"&&!att.autoJ&&M.time>=p.cue-.02){att.autoJ=true;C.jump(a,p.k.jv,.55);p.jumpX=a.x;p.swung=false;p.blockJump=false;C.pose(a,"rise",24);SP.sfx("jump");return;}}
+    else{const max=(p.rec>=0?2.4:p.k.run)*(dir*f<0?.86:1);C.run(a,dir,dt,{max,acc:42,face:f});if(!dir)a.vx=damp(a.vx,0,14,dt);a.f=f;}
     if(p.rec<0&&!(p.poseT>0))C.pose(a,Math.abs(a.vx)>.3?"ready":"ready",14);}
   else{C.run(a,dir,dt,{max:p.k.run,airAcc:3,face:f});a.f=f;
+    /* near the top of the jump with the ball close: the arm draws back on its own, ready to fire */
+    if(!p.swung&&!p.blockJump&&a.vy<2.6&&a.pose!=="cock"){const b=M.ball;if(b.live&&!(M.tt===p.t&&M.tn>=3)&&Math.hypot(b.x-(a.x+f*.42),b.y-(C.hipY(a)+1.1))<3.2)C.pose(a,"cock",20);}
     if(!p.swung&&!p.blockJump){const k=C.take(P,"a",.1)?"spike":C.take(P,"c",.1)?"tip":null;if(k){p.swung=true;p.sw={kind:k,t:0,aim:P.h.up?1:P.h.down?-1:0,min:9};C.pose(a,k==="tip"?"tip":"cock",38);}}
     if(p.blockJump&&P.h.up)C.pose(a,"press",30);}
   /* the swing: contact at the closest moment */
-  if(p.sw){const sw=p.sw;sw.t+=dt;if(sw.kind==="spike"&&sw.t>.05&&a.pose==="cock")C.pose(a,"swing",40);if(!sw.aim)sw.aim=P.h.up?1:P.h.down?-1:0;
+  if(p.sw){const sw=p.sw;sw.t+=dt;if(sw.kind==="spike"&&sw.t>.03&&a.pose==="cock")C.pose(a,"swing",60);if(!sw.aim)sw.aim=P.h.up?1:P.h.down?-1:0;
     const b=M.ball,ok=b.live&&ld(p.t,b.x)>-.1&&!(M.tt===p.t&&M.tn>=3);
-    if(ok&&sw.t<=.17){const cx=a.x+f*.42,cy=C.hipY(a)+1.1,d=Math.hypot(b.x-cx,b.y-cy);
-      if(d<.55){if(d>sw.min+.003)humanHit(M,p,sw.min);else sw.min=d;}else if(sw.min<.55)humanHit(M,p,sw.min);
-      if(p.sw&&sw.t>.16&&sw.min<.55)humanHit(M,p,sw.min);}
+    if(ok&&sw.t<=.24){const cx=a.x+f*.42,cy=C.hipY(a)+1.1,d=Math.hypot(b.x-cx,b.y-cy);
+      if(d<HW){if(d>sw.min+.003)humanHit(M,p,sw.min);else sw.min=d;}else if(sw.min<HW)humanHit(M,p,sw.min);
+      if(p.sw&&sw.t>.23&&sw.min<HW)humanHit(M,p,sw.min);}
     if(p.sw&&sw.t>.3)p.sw=null;}
   /* a set you didn't press for: a late, safe ball to the wing */
   {const b=M.ball;if(M.plan&&M.plan.p===p&&M.plan.type==="set"&&p.rec<0&&b.live&&b.vy<0&&b.y<1.8&&b.y>1.4&&Math.abs(b.x-(a.x+f*.12))<.7){const T=M.teams[p.t],ws=T.players.find(x=>x.role==="WS"&&x!==p)||T.players.find(x=>x!==p);setBall(M,p,ws,"high",.4,false);SP.F.pop(M.cam.X(b.x),M.cam.Y(b.y)-40,"LATE SET",{col:"#cfc8bd",size:22,sub:"Press X as it comes down"});return;}}
   /* hands: a bump low, a set high */
   if(p.rec>=0||p.dive>0)humanHands(M,p);
   else if(M.cfg.diff==="rookie"&&M.plan&&M.plan.p===p&&M.plan.type==="recv"){/* Rookie: a gentle auto-bump if you're in the right spot */const b=M.ball;if(b.live&&b.vy<0&&b.y<.9&&Math.abs(b.x-(a.x+f*.42))<.45&&!a.air){receive(M,p,.5,"");p.recCool=.2;}}}
-function humanHit(M,p,d){const sw=p.sw,q=clamp(1-d/(.55*(M.cfg.versus?1:perk("win"))),0,1);p.sw=null;const pw=!!(p.thunder&&M.time<p.thunder)||!!(M.attack&&M.attack.p===p&&M.attack.spec);if(pw)p.thunder=0;
+function humanHit(M,p,d){const sw=p.sw,q=clamp(1-Math.max(0,d-.1)/(.58*(M.cfg.versus?1:perk("win"))),0,1);p.sw=null;const pw=!!(p.thunder&&M.time<p.thunder)||!!(M.attack&&M.attack.p===p&&M.attack.spec);if(pw)p.thunder=0;
   if(p.jumpX!=null&&M.attack&&M.attack.p===p&&M.attack.tempo==="pipe"&&Math.abs(ld(p.t,p.jumpX))<3){pointTo(M,1-p.t,"BACK-ROW FAULT",{kind:"err",p,sub:"Pipe hitters take off behind the 3 m line"});return;}
   attack(M,p,sw.kind==="tip"?(sw.aim>0?"roll":"tip"):"spike",sw.aim,q,pw&&sw.kind!=="tip");
   if(q>=.78&&sw.kind!=="tip")M.spirit[p.t]=clamp(M.spirit[p.t]+.05,0,1);}
@@ -403,7 +410,7 @@ function aiServePad(M,p){const P=p.ai.pad=p.ai.pad||C.pad({});const sv=M.sv,b=M.
     p.ai.sv={aim:best,wait:rand(.5,1.3),jt:rand(-.09,.09)/sk,ht:rand(-.06,.06)/sk};}
   const s=p.ai.sv;
   if(sv.phase==="ready"){if(Math.abs(sv.aim-s.aim)>.03){P.h[sv.aim<s.aim?"up":"down"]=true;}else if(sv.t>s.wait)P.p.a=0;}
-  else if(sv.phase==="toss"){if(sv.kind==="spin"){if(!a.air){const t=C.timeToY(b,3.0);if(t!=null&&t<p.k.jv/C.PG+.02+s.jt)P.p.a=0;}else if(!p.swung){const cx=a.x+faceOf(p.t)*.42,cy=C.hipY(a)+1.1;if(Math.hypot(b.x-cx,b.y-cy)<.72+s.ht)P.p.a=0;}}
+  else if(sv.phase==="toss"){if(sv.kind==="spin"){if(!a.air){const t=C.timeToY(b,2.05+apexOf(p.k.jv));if(t!=null&&t<p.k.jv/C.PG+.02+s.jt)P.p.a=0;}else if(!p.swung){const cx=a.x+faceOf(p.t)*.42,cy=C.hipY(a)+1.1;if(Math.hypot(b.x-cx,b.y-cy)<.72+s.ht)P.p.a=0;}}
     else if(sv.kind==="float"){P.h.a=sv.tt<.5+s.ht;}
     else{if(!p.swung&&b.vy<0){const cy=C.hipY(a)+.95;if(b.y<cy+.35+s.ht)P.p.a=0;}}}
   return P;}
@@ -434,8 +441,8 @@ function step(M,dt){M.time+=dt;const b=M.ball;
   ev.forEach(e=>{if(e.k==="floor")floorHit(M,e.x);if(e.k==="net"||e.k==="tape"){M.rip={a:e.k==="net"?1:.5,y:e.k==="net"?clamp(b.y,C.NET-.9,C.NET-.1):C.NET,t:0,dir:-Math.sign(b.vx)||1};SP.sfx("block");M.plan=null;if(e.k==="tape"&&M.phase==="live")SP.F.pop(M.cam.X(0),M.cam.Y(2.6)-30,"OFF THE TAPE",{col:"#fff",size:22});}});
   /* a watchdog for a ball nobody can reach */
   if(M.phase==="live"&&M.time-(M.lastTouchT||M.time)>7)floorHit(M,b.x);}
-function floorHit(M,x){if(M.phase!=="live")return;{const bb=M.ball,pv=bb.pv||[0,0],v=Math.hypot(pv[0],pv[1]);M.marks=M.marks||[];M.marks.push({x,t:M.time,v,crack:v>16.5||bb.zap,seed:Math.random()*99});const hot=bb.heat>.5,zc=bb.zap?"255,211,77":hot?"255,170,80":"255,255,255";
-    fx(M,"shock",{x,col:zc,n:v>14?2:1,r:1+Math.min(1.8,v*.09),life:.55+Math.min(.3,v*.015)});if(v>14){C.dust(SP.X,M.cam,x,v>17?12:7);sparks(M,x,.05,v>17?9:5,zc,5.5,Math.PI/2,.9);}
+function floorHit(M,x){if(M.phase!=="live")return;{const bb=M.ball,pv=bb.pv||[0,0],v=Math.hypot(pv[0],pv[1]);M.marks=M.marks||[];M.marks.push({x,t:M.time,v,crack:v>19||bb.zap,seed:Math.random()*99});const hot=bb.heat>.5,zc=bb.zap?"255,211,77":hot?"255,170,80":"255,255,255";
+    fx(M,"shock",{x,col:zc,n:v>16?2:1,r:1+Math.min(1.8,v*.09),life:.55+Math.min(.3,v*.015)});if(v>16){C.dust(SP.X,M.cam,x,v>19?12:7);sparks(M,x,.05,v>19?9:5,zc,5.5,Math.PI/2,.9);}
     if(bb.zap){fx(M,"bolt",{x,seed:Math.random()*99});bb.zap=false;SP.F.flashOn(.22,"255,211,77");}
     const sh=M.shot;if(sh&&sh.p&&sh.p.human&&!SP.autoplay&&sh.kind==="spike"&&sh.q>=.78&&!sh.blocked&&M.tt!==1-sh.t)SP.F.slowmo(.22,.45);}
   const b=M.ball,side=x<0?0:1,inC=Math.abs(x)<=C.HALF;let w,why,o={x};
@@ -446,6 +453,7 @@ function floorHit(M,x){if(M.phase!=="live")return;{const bb=M.ball,pv=bb.pv||[0,
     else if(sh&&lp===sh.p&&sh.t===w){why=sh.pw?"THUNDER SPIKE!":sh.kind==="tip"?(sh.p.role==="SE"&&sh.dump?"SETTER DUMP!":"TIP KILL"):sh.kind==="roll"?"ROLL SHOT":sh.q>=.78?"PERFECT KILL":"KILL";o.kind="kill";o.p=sh.p;if(sh.dump)sh.p.stats.dumps++;o.set=sh.setter;o.v=sh.v;o.pw=sh.pw;o.sub=sh.kind==="spike"?`${C.kmh(sh.v)} km/h`:"Into the gap";}
     else if(sv&&lp===sv.p&&lp.t===w&&M.touches<=1){why=sv.kind==="float"?"FLOAT ACE!":"ACE!";o.kind="ace";o.p=sv.p;o.sub=`${C.kmh(sv.v)} km/h ${sv.kind==="spin"?"jump serve":sv.kind==="float"?"jump float":"serve"}`;}
     else{why=lp&&lp.t===side?"DROPPED":"NOBODY HOME";o.sub=lp&&lp.t===side?"It hit the floor on your side":"";}}
+  else if(sh&&sh.kind==="spike"&&lp&&lp.t!==sh.t&&M.lastT!==sh.t&&!sh.blocked&&M.time-sh.time<2.2){/* a hard spike they couldn't control: the hitter's point */w=sh.t;why=sh.pw?"THUNDER SPIKE!":"KILL";o.kind="kill";o.p=sh.p;o.set=sh.setter;o.v=sh.v;o.pw=sh.pw;o.sub="Too hot to handle";}
   else{w=M.lastT<0?1-side:1-M.lastT;why="OUT!";o.kind="err";o.p=lp;o.sub=lp?`Off ${lp.t===0?"your":"their"} ${lp===sv?.p?"serve":"hands"}`:"";if(lp&&sv&&lp===sv.p&&M.touches<=1)lp.stats.srvErr++;}
   pointTo(M,w,why,o);}
 
@@ -519,11 +527,17 @@ function drawFx(g,M,layer){const cam=M.cam,s=cam.s,b=M.ball;
 /* your timing guide: a ring at the sweet spot of your hand that the ball closes in on; gold when it's perfect */
 function timingRing(g,M){if(SP.autoplay)return;const b=M.ball;if(!b.live||M.phase!=="live")return;
   M.teams.forEach(T=>T.players.forEach(p=>{if(!p.human||!p.a.air||p.dive>0)return;const a=p.a,f=a.f,cx=a.x+f*.42,cy=C.hipY(a)+1.1,d=Math.hypot(b.x-cx,b.y-cy);
-    if(d>2.2||(M.tt===p.t&&M.tn>=3)||ld(p.t,b.x)<-.3)return;const cam=M.cam,x=cam.X(cx),y=cam.Y(cy),s=cam.s,pr=.121*s,win=.55*s,k=clamp(1-(d-.12)/2.1,0,1);
+    if(d>2.2||(M.tt===p.t&&M.tn>=3)||ld(p.t,b.x)<-.3)return;const cam=M.cam,x=cam.X(cx),y=cam.Y(cy),s=cam.s,pr=.23*s,win=HW*s,k=clamp(1-(d-.12)/2.1,0,1);
     g.save();g.lineWidth=1.5;g.strokeStyle=`rgba(255,255,255,${.18*k})`;g.setLineDash([3,4]);g.beginPath();g.arc(x,y,win,0,TAU);g.stroke();g.setLineDash([]);
-    const hot=d<=.121,inw=d<.55,col=hot?"255,211,77":inw?accRgb():"255,255,255";g.strokeStyle=`rgba(${col},${.35+.55*k})`;g.lineWidth=hot?3:2;g.beginPath();g.arc(x,y,Math.max(pr,d*s),0,TAU);g.stroke();
+    const hot=d<=.23,inw=d<HW,col=hot?"255,211,77":inw?accRgb():"255,255,255";g.strokeStyle=`rgba(${col},${.35+.55*k})`;g.lineWidth=hot?3:2;g.beginPath();g.arc(x,y,Math.max(pr,d*s),0,TAU);g.stroke();
     g.fillStyle=`rgba(255,211,77,${hot?.85:.35*k})`;g.beginPath();g.arc(x,y,Math.max(2.5,pr*.45),0,TAU);g.fill();g.restore();}));}
 
+/* the jump cue: a ring on the floor closes onto your feet; jump when it's gold */
+function jumpCue(g,M){if(SP.autoplay||M.phase!=="live")return;M.humans.forEach(h=>{if(h.cue==null||h.a.air)return;const dtj=h.cue-M.time;if(dtj>.8||dtj<-.18)return;
+  const cam=M.cam,x=cam.X(h.a.x),y=cam.DY(.5),s=cam.s,k=clamp(dtj/.8,0,1),now=Math.abs(dtj)<.1,col=now?"255,211,77":accRgb();g.save();
+  g.strokeStyle=`rgba(${col},.85)`;g.lineWidth=now?3:2;g.beginPath();g.ellipse(x,y,.45*s,.12*s,0,0,TAU);g.stroke();
+  if(dtj>0){g.strokeStyle=`rgba(${col},${.25+.5*(1-k)})`;g.lineWidth=1.5;g.beginPath();g.ellipse(x,y,(.45+1.6*k)*s,(.12+.43*k)*s,0,0,TAU);g.stroke();}
+  if(now){const hy=cam.Y(C.hipY(h.a)+1.25);D.small(g,"JUMP!",x,hy-12,15,"#ffd34d","center");}g.restore();});}
 SP._fx={timingRing:(g,M)=>timingRing(g,M),drawFx:(g,M,l)=>drawFx(g,M,l),fx:(M,k,o)=>fx(M,k,o),sparks:(...a)=>sparks(...a)};
 /* ---------- drawing ---------- */
 function drawMatch(g,M){const cam=M.cam,b=M.ball,F=SP.F,t=F.t;
@@ -550,7 +564,7 @@ function drawMatch(g,M){const cam=M.cam,b=M.ball,F=SP.F,t=F.t;
   M.teams[1].players.forEach(p=>C.drawAthlete(g,cam,p.a));C.drawNet(g,cam,0,M.rip);M.teams[0].players.forEach(p=>C.drawAthlete(g,cam,p.a));
   const fade=M.tool&&!rep?clamp(1-(M.time-M.tool.t0-.15)/.9,0,1):1;
   if(!b.held||M.phase!=="dead")C.drawShadow(g,cam,b.x,b.y);C.drawBall(g,cam,b,acc(),{alpha:fade,scale:M.tool&&!rep?.6+.4*fade:1});
-  drawFx(g,M,"over");speedLines(g,M);impactFrame(g,M);C.drawVignette(g,cam);timingRing(g,M);
+  drawFx(g,M,"over");speedLines(g,M);impactFrame(g,M);C.drawVignette(g,cam);timingRing(g,M);jumpCue(g,M);
   /* markers over people: you, and whose ball it is */
   M.humans.forEach(h=>{const a=h.a,x=cam.X(a.x),y=cam.Y(C.hipY(a)+1.05)-14,mine=M.plan&&M.plan.p===h&&M.phase==="live";g.fillStyle=mine?A.K.col():"rgba(255,255,255,.85)";g.beginPath();g.moveTo(x-7,y-10);g.lineTo(x+7,y-10);g.lineTo(x,y);g.closePath();g.fill();
     if(mine&&!SP.autoplay)D.text(g,M.plan.type==="set"?"SET IT":"YOURS",x,y-16,15,A.K.col(),"center",800,true);
@@ -641,7 +655,8 @@ function runMatch(host,cfg,onEnd){stopRun();host.innerHTML=`<div class="spk-stag
         if(M.phase==="over"&&!done){done=true;M.say=null;setTimeout(()=>{if(RT&&RT.M===M){showResult();}},1600);}}
       const fxOn=!A.K.reduced();
       M.teams.forEach(T=>T.players.forEach(p=>{const a=p.a;a.look=M.phase==="dead"||M.phase==="over"||M.phase==="intro"?null:[M.ball.x,M.ball.y];a.fx=fxOn;
-        const sp=(p.thunder&&M.time<p.thunder)||(p.iron&&M.time<p.iron)||(p.tempo&&M.time<p.tempo);a.glow=damp(a.glow||0,sp&&fxOn?1:0,6,raw);a.glowCol=p.t===0?acc():"#9fd0ff";a.ghostCol=p.t===0?acc():"#cfe3ff";
+        const sp=(p.thunder&&M.time<p.thunder)||(p.iron&&M.time<p.iron)||(p.tempo&&M.time<p.tempo);a.glow=damp(a.glow||0,fxOn?(sp?1:p.fire?.45:0):0,6,raw);a.glowCol=sp?(p.t===0?acc():"#9fd0ff"):"#ff7a1a";
+        if(a.followAt&&M.time>a.followAt){a.followAt=0;if(a.air&&!p.script)C.pose(a,"follow",26);}a.ghostCol=p.t===0?acc():"#cfe3ff";
         if(M.phase!=="replay"){C.animate(a,gdt);if(fxOn&&a.step&&Math.abs(a.vx)>4.2)C.dust(SP.X,M.cam,a.x,2);if(fxOn&&p.dive>.05&&p.dive<.5&&!a.air&&Math.random()<.5)C.dust(SP.X,M.cam,a.x,2);}}));
       if(M.phase!=="replay")C.ballFx(M.ball,gdt);
       stepFx(M,raw*(gdt>0?Math.min(1,gdt/raw+.25):.25));if(M.rip){M.rip.t+=gdt;if(M.rip.t>1.2)M.rip=null;}if(M.fxl){M.fxl.t+=raw;if(M.fxl.t>.5)M.fxl=null;}if(M.impact){M.impact.t+=raw;if(M.impact.t>M.impact.d)M.impact=null;}
